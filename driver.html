@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="https://bitcoincore.tech/apps/bitcoinjs-ui/lib/bitcoinjs-lib.js"></script>
+	<script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
+	<script src="https://bundle.run/buffer@6.0.3"></script>
+	<script src="https://bundle.run/bip39@3.0.4"></script>
+	<script src="https://bundle.run/bip32@2.0.6"></script>
+	<script src="https://bundle.run/browserify-cipher@1.0.1"></script>
+	<script>
+	        function computeRawPrivkey( node ) {
+	                return bitcoinjs.ECPair.fromPrivateKey( node.privateKey, { network: bitcoinjs.networks.mainnet } );
+	        }
+	</script>
+	<script>
+	        function getPrivkeyHex( backupwords, path, index ) {
+	                var seed = bip39.mnemonicToSeedSync( backupwords );
+	                var node = bip32.fromSeed( seed );
+	                var path = "m/" + path + "/" + index;
+	                var root = node;
+	                var child = root.derivePath( path );
+	                return computeRawPrivkey( child );
+	        }
+	</script>
+	<script>
+	        function toHexString(byteArray) {
+	                return Array.from(byteArray, function(byte) {
+	                        return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+	                }).join('');
+	        }
+	</script>
+	<script>
+	        var backupwords = bip39.generateMnemonic();
+	        var path = 0;
+	        var index = 1;
+	        var privKey = getPrivkeyHex( backupwords, path, index );
+	        privKey = privKey.__D.toString( 'hex' );
+	        var pubKey = nobleSecp256k1.getPublicKey( privKey, true );
+	        var pubKeyMinus2 = pubKey.substring( 2 );
+	</script>
+	<script>
+	        function normalizeRelayURL(e){let[t,...r]=e.trim().split("?");return"http"===t.slice(0,4)&&(t="ws"+t.slice(4)),"ws"!==t.slice(0,2)&&(t="wss://"+t),t.length&&"/"===t[t.length-1]&&(t=t.slice(0,-1)),[t,...r].join("?")}
+	        var relay = "wss://relay.damus.io";
+	        relay = normalizeRelayURL( relay );
+	        var socket = new WebSocket( relay );
+	        var filter = {
+	                "#p": [
+	                        pubKeyMinus2
+	                ]
+	        };
+	        var subscription = [ "REQ", "get-self-references", filter ];
+	        subscription = JSON.stringify( subscription );
+	        sessionStorage[ "selfsubscription" ] = subscription;
+	        setTimeout( function() {socket.send( sessionStorage[ "selfsubscription" ] );}, 1000 );
+
+	        var filter = {
+	                "kinds": [
+	                        60
+	                ]
+	        };
+	        var subscription2 = [ "REQ", "get-kind-sixty", filter ];
+	        subscription2 = JSON.stringify( subscription2 );
+	        sessionStorage[ "kindsixtysub" ] = subscription2;
+	        setTimeout( function() {socket.send( sessionStorage[ "kindsixtysub" ] );}, 1000 );
+
+	        function subscribe( pubkey ) {
+	          var filter = {
+	                  "authors": [
+	                          pubkey
+	                  ]
+	          };
+	          var subscription = [ "REQ", "my-sub", filter ];
+	          subscription = JSON.stringify( subscription );
+	          sessionStorage.subscription = subscription;
+	          socket.send( sessionStorage.subscription );
+	        }
+
+	        socket.addEventListener( 'open', function( event ) {
+	                console.log( "connected to nostr relay " + relay );
+	        });
+
+	        // Listen for messages
+	        socket.addEventListener( 'message', function( event ) {
+	                var event = JSON.parse( event.data );
+	                if ( event[ 2 ] && event[ 2 ].kind == 4 ) {
+	                        var i; for ( i=0; i<event[ 2 ].tags.length; i++ ) {
+	                                        if ( event[ 2 ].tags[ i ] && event[ 2 ].tags[ i ][ 1 ] ) {
+	                                                        var recipient = event[ 2 ].tags[ i ][ 1 ];
+	                                                        if ( recipient == pubKeyMinus2 ) {
+	                                                                        var decrypted_message = decrypt( privKey, event[ 2 ].pubkey, event[ 2 ].content );
+	                                                                        console.log( decrypted_message + " (sent privately by " + event[ 2 ].pubkey + ")" );
+	                                                                        decideMessageTypeAndNextSteps( decrypted_message, event[ 2 ].pubkey );
+	                                                        } else if ( event[ 2 ].pubkey == pubKeyMinus2 ) {
+	                                                                        console.log( decrypt( privKey, recipient, event[ 2 ].content ) + " (sent privately by " + event[ 2 ].pubkey + ")" );
+	                                                        }
+	                                        }
+	                        }
+	                } else if ( event[ 2 ] && event[ 2 ].kind == 1 ) {
+	                        console.log( event[ 2 ].content + " (sent publicly by " + event[ 2 ].pubkey + ")" );
+	                } else if ( event[ 2 ] && event[ 2 ].kind == 60 ) {
+	                        var json = JSON.parse( event[ 2 ].content );
+	                        var expires = json[ "expires" ];
+	                        var current_timestamp = Math.floor( ( new Date().getTime() ) / 1000 );
+	                        if ( Number( current_timestamp ) >= Number( expires ) ) {
+	                        	return;
+	                        }
+	                        var type = json[ "type" ];
+	                        if ( type != "offer" ) {
+	                        	return;
+	                        }
+	                        console.log( "your ride id (save this, you'll need it in case of a dispute):", event[ 2 ].id );
+	                        var from = json[ "from" ];
+	                        var fromobj = L.marker( from );
+	                        var to = json[ "to" ];
+	                        var toobj = L.marker( to );
+	                        var amount = json[ "amount" ];
+	                        var name = json[ "name" ];
+	                        console.log( event[ 2 ].content, event[ 2 ].id, event[ 2 ].pubkey );
+	                        var i_want_to_pick_up_the_rider = confirm( "Click okay if you want to pick up " + name + " and take them " + getDistance( fromobj.getLatLng(), toobj.getLatLng() ) + " miles away for " + amount + " sats" );
+	                        if ( !i_want_to_pick_up_the_rider ) {
+	                        	return;
+	                        }
+	                        //if the driver says they want to pick up the rider, make them send the rider a dm with a pubkey that the voucher should be locked to, then -- if the rider sends back a voucher and its ownership is confirmed pending a second preimage (and if it's funded) -- give the driver this link so they can go get the rider: var url = "https://maps.google.com/?q=" + from[ "lat" ] + "," + from[ "lng" ]
+	                        sessionStorage[ "current-contract" ] = JSON.stringify( json );
+	                        var message = {}
+	                        message[ "type" ] = "acceptance";
+	                        message[ "name" ] = "Billy Bob Thorton";
+	                        message[ "vehicle" ] = "white Ford mustang";
+	                        message[ "coordinates" ] = {"lat":35.2423,"lng":-100.7672}
+							var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+			        		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
+	                        message[ "pubkey" ] = pubkey;
+	                        message = JSON.stringify( message );
+	                        makePrivateNote( message, event[ 2 ].pubkey );
+	                        //the rider's app should automatically send the second preimage to the driver if their app says they get within 100 feet of their destination, or they can show them the preimage they need manually
+	                }
+	        });
+	        function makePrivateNote( note, recipientpubkey ) {
+	                console.log( "note: '" + note + "'" );
+	                var now = Math.floor( ( new Date().getTime() ) / 1000 );
+	                console.log( now );
+	                var privatenote = encrypt( privKey, recipientpubkey, note );
+	                var newevent = [
+	                        0,
+	                        pubKeyMinus2,
+	                        now,
+	                        4,
+	                        [['p', recipientpubkey]],
+	                        privatenote
+	                ];
+	                var message = JSON.stringify( newevent );
+	                console.log( "message: '" + message + "'" );
+	                var msghash = bitcoinjs.crypto.sha256( message ).toString( 'hex' );
+	                console.log( "msghash: '" + msghash + "'" );
+	                nobleSecp256k1.schnorr.sign( msghash, privKey ).then(
+	                        value => {
+	                                sig = value;
+	                                console.log( "the sig is:", sig );
+	                                nobleSecp256k1.schnorr.verify(
+	                                        sig,
+	                                        msghash,
+	                                        pubKeyMinus2
+	                                ).then(
+	                                        value => {
+	                                                console.log( "this should say true if the signature is valid for the above pubkey over the message", value );
+	                                                if ( value ) {
+	                                                        var fullevent = {
+	                                                                "id": msghash,
+	                                                                "pubkey": pubKeyMinus2,
+	                                                                "created_at": now,
+	                                                                "kind": 4,
+	                                                                "tags": [['p', recipientpubkey]],
+	                                                                "content": privatenote,
+	                                                                "sig": sig
+	                                                        }
+	                                                        var sendable = [ "EVENT", fullevent ];
+	                                                        sessionStorage.sendable = JSON.stringify( sendable );
+	                                                        socket.send( '["EVENT",' + JSON.stringify( JSON.parse( sessionStorage.sendable )[ 1 ] ) + ']' );
+	                                                 }
+	                                        }
+	                               );
+	                        }
+	                );
+	        }
+	        function encrypt( privkey, pubkey, text ) {
+	          console.log( "recipient pubkey (because I keep getting an error that it is not real):", pubkey );
+	          var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
+
+	          var iv = window.crypto.getRandomValues( new Uint8Array(16) );
+	          var cipher = browserifyCipher.createCipheriv(
+	            'aes-256-cbc',
+	            buffer.Buffer.from( key, 'hex' ),
+	            iv
+	          );
+	          var encryptedMessage = cipher.update( text, "utf8", "base64" );
+	          emsg = encryptedMessage + cipher.final( "base64" );
+
+	          return emsg + "?iv=" + buffer.Buffer.from( iv.buffer ).toString( "base64");
+	        }
+
+	        function decrypt( privkey, pubkey, ciphertext ) {
+	          var [ emsg, iv ] = ciphertext.split( "?iv=" );
+	          var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
+
+	          var decipher = browserifyCipher.createDecipheriv(
+	            'aes-256-cbc',
+	            buffer.Buffer.from( key, "hex" ),
+	            buffer.Buffer.from( iv, "base64" )
+	          );
+	          var decryptedMessage = decipher.update( emsg, "base64" );
+	          dmsg = decryptedMessage + decipher.final( "utf8" );
+
+	          return dmsg;
+	        }
+	</script>
+	<script type="text/javascript">var link = document.createElement("link");link.rel="stylesheet";link.href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css";link.integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==";link.setAttribute("crossorigin", "");document.getElementsByTagName("head")[0].appendChild(link);</script>
+	<script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og==" crossorigin=""></script>
+	<script>
+		function getDistance( from, to ) {
+	    	return ( from.distanceTo( to ).toFixed( 0 ) / 1609.344 ).toFixed( 3 );
+		}
+	</script>
+</head>
+<body>
+        <script>
+            var template1 = `function script( params ) {var signature = params[ 0 ];return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}`;
+            var template1hash = bitcoinjs.crypto.sha256( template1 ).toString( "hex" );
+            function reviseTemplate1( challenge, pubkey ) {
+                var revisedscript = template1.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
+                return revisedscript;
+            }
+            var template2 = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
+            var template2hash = bitcoinjs.crypto.sha256( template2 ).toString( "hex" );
+            function reviseTemplate2( hash, challenge, pubkey ) {
+                var revisedscript = template2.replace( /@.*?(@)/, '"' + hash + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
+                return revisedscript;
+            }
+        </script>
+	<div id="error banner" style="background-color: red; color: white; font-weight: bold; padding: 5px; font-family: sans-serif; display: none;"></div>
+	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+		<h2>Prove your ownership of your voucher (pending the second preimage).</h2>
+		<p>Enter your voucher</p>
+		<p><input type="text" id="voucher" /></p>
+		<p><button id="prove ownership pending second preimage">Submit</button></p>
+	</div>
+	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+		<h2>Prove full ownership of your voucher</h2>
+		<p>Enter your voucher</p>
+		<p><input type="text" id="voucher" /></p>
+		<p>Enter the second preimage</p>
+		<p><input type="text" id="preimage" /></p>
+		<p><button id="prove ownership">Submit</button></p>
+	</div>
+	<p>----- OR -----</p>
+	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+		<h2>Get your rest api endpoint and your invoice macaroon from your umbrel, mynode, voltage, or other node.</h2>
+		<p>Rest api endpoint</p>
+		<p><input type="text" id="endpoint" /></p>
+		<p>Invoice macaroon</p>
+		<p><input type="text" id="macaroon" /></p>
+		<p><button id="make invoice">Submit</button></p>
+	</div>
+	<p>----- OR -----</p>
+	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+		<h2>Create an invoice by running this command in your node:</h2>
+		<div id="terminal instructions" style="word-break: break-all; border: 1px solid black; background-color: #cccccc; padding: 5px;">
+		</div>
+		<h2>Then copy-paste the resulting payment request here to redeem your voucher:</h2>
+		<p>Invoice</p>
+		<p><input type="text" id="invoice" /></p>
+		<p><button id="skip_the_loop">Submit</button></p>
+	</div>
+	<script>
+		//document.getElementById( "terminal instructions" ).innerText = "lncli addinvoice --amt " + amount + " --preimage " + preimage;
+	</script>
+	<script>
+		document.getElementById( "prove ownership pending second preimage" ).addEventListener( "click", function() {provePendingOwnership();});
+		async function provePendingOwnership( voucherhex = "" ) {
+			if ( !voucherhex || voucherhex == "" ) {
+				var voucher = JSON.parse( buffer.Buffer.from( document.getElementById( "voucher" ).value, "hex" ).toString() );
+			} else {
+				var voucher = JSON.parse( buffer.Buffer.from( voucherhex, "hex" ).toString() );
+			}
+			var preimage = voucher[ "preimage" ];
+        	var voucherid = voucher[ "voucherid" ];
+        	var querykey = voucher[ "querykey" ];
+        	var amount = voucher[ "amount" ];
+        	var escrow = voucher[ "escrow" ];
+        	var lockinghash_according_to_user = voucher[ "lockinghash" ];
+        	var templatehash = voucher[ "templatehash" ];
+        	if ( templatehash == template2hash ) {
+				var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+        		var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
+				var script = reviseTemplate2( lockinghash_according_to_user, challenge, pubkey );
+				console.log( script );
+				var scriptinhex = buffer.Buffer.from( script ).toString( "hex" );
+				console.log( scriptinhex );
+				var senderscripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
+				var voucherinfofromescrow = await getVoucherInfoFromEscrow( voucherid );
+				voucherinfofromescrow = JSON.parse( voucherinfofromescrow );
+				console.log( "the info returned is", voucherinfofromescrow );
+				if ( voucherinfofromescrow[ "status" ] != "ACCEPTED" ) {
+					//console.error( "Oh no! The voucher is not funded, its status is", voucherinfofromescrow[ "status" ] );
+					//return false;
+				}
+				var escrowscripthash = voucherinfofromescrow[ "scripthash" ];
+				console.log( "script hashes, first from the escrow, then from the sender:", escrowscripthash, senderscripthash );
+				var senderpmthash = bitcoinjs.crypto.sha256( buffer.Buffer.from( preimage, "hex" ) ).toString( "hex" );
+				var escrowpmthash = voucherinfofromescrow[ "pmthash" ];
+				var senderamount = Number( amount );
+				var escrowamount = Number( voucherinfofromescrow[ "amount" ] );
+				console.log( "the script hashes match, right?", senderscripthash == escrowscripthash );
+				if ( senderscripthash != escrowscripthash ) {
+					return false;
+				}
+				console.log( "the payment hashes match, right?", senderpmthash == escrowpmthash );
+				if ( senderpmthash != escrowpmthash ) {
+					return false;
+				}
+				console.log( "the amounts match, right?", senderamount == escrowamount );
+				if ( senderamount != escrowamount ) {
+					return false;
+				}
+				console.log( "I now know that I will be the owner if I get the second preimage and it hashes to this:", lockinghash_according_to_user );
+				return true;
+        	}
+		}
+	</script>
+	<script>
+		document.getElementById( "prove ownership" ).addEventListener( "click", async function() {proveFullOwnership();});
+		async function proveFullOwnership( voucherhex = "", second_preimage = "" ) {
+			if ( !voucherhex || voucherhex == "" ) {
+				var voucher = JSON.parse( buffer.Buffer.from( document.getElementById( "voucher" ).value, "hex" ).toString() );
+			} else {
+				var voucher = JSON.parse( buffer.Buffer.from( voucherhex, "hex" ).toString() );
+			}
+			if ( !second_preimage || second_preimage == "" ) {
+				var second_preimage = document.getElementById( "preimage" ).value;
+			}
+			var preimage = voucher[ "preimage" ];
+        	var voucherid = voucher[ "voucherid" ];
+        	var querykey = voucher[ "querykey" ];
+        	var amount = voucher[ "amount" ];
+        	var escrow = voucher[ "escrow" ];
+        	var lockinghash_according_to_user = voucher[ "lockinghash" ];
+        	var templatehash = voucher[ "templatehash" ];
+        	if ( templatehash == template2hash ) {
+				var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+        		var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
+        		//var lockinghash_based_on_preimage = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
+				var script = reviseTemplate2( lockinghash_according_to_user, challenge, pubkey );
+				var signature = await nobleSecp256k1.sign( challenge, driver_privkey );
+				var params = [];
+				params.push( signature, second_preimage );
+				params = JSON.stringify( params );
+				console.log( signature, script );
+				var scriptinhex = buffer.Buffer.from( script ).toString( "hex" );
+				var paramsinhex = buffer.Buffer.from( params ).toString( "hex" );
+				console.log( scriptinhex, paramsinhex );
+				var senderscripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
+				var voucherinfofromescrow = await getVoucherInfoFromEscrow( voucherid );
+				voucherinfofromescrow = JSON.parse( voucherinfofromescrow );
+				console.log( "the info returned is", voucherinfofromescrow );
+				var escrowscripthash = voucherinfofromescrow[ "scripthash" ];
+				console.log( "script hashes, first from the escrow, then from the sender:", escrowscripthash, senderscripthash );
+				var senderpmthash = bitcoinjs.crypto.sha256( buffer.Buffer.from( preimage, "hex" ) ).toString( "hex" );
+				var escrowpmthash = voucherinfofromescrow[ "pmthash" ];
+				var senderamount = Number( amount );
+				var escrowamount = Number( voucherinfofromescrow[ "amount" ] );
+				console.log( "the script hashes match, right?", senderscripthash == escrowscripthash );
+				if ( senderscripthash != escrowscripthash ) {
+					return false;
+				}
+				console.log( "the payment hashes match, right?", senderpmthash == escrowpmthash );
+				if ( senderpmthash != escrowpmthash ) {
+					return false;
+				}
+				console.log( "the amounts match, right?", senderamount == escrowamount );
+				if ( senderamount != escrowamount ) {
+					return false;
+				}
+				if ( senderscripthash == escrowscripthash ) {
+					var url = "http://localhost:8080/verify-ownership/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid;
+					//query whether it returns true or false -- if it returns true, you are the voucher owner, yay!
+					var i_am_the_owner = await proveOwnership( url );
+					if ( i_am_the_owner == "true" ) {
+						i_am_the_owner = true;
+					} else {
+						i_am_the_owner = false;
+					}
+					console.log( "i am the owner, right?", i_am_the_owner );
+					if ( i_am_the_owner ) {
+						document.getElementById( "error banner" ).style.display = "block";
+						document.getElementById( "error banner" ).style.backgroundColor = "green";
+						document.getElementById( "error banner" ).innerText = "You own the voucher";
+						//var invoice = await makeInvoice( preimage );
+						var endpoint = "https://sats4tips.m.voltageapp.io:8080";
+						var macaroon = "AgEDbG5kAlgDChDOMYIL5fYtAG5idnYiIvDoEgEwGhYKB2FkZHJlc3MSBHJlYWQSBXdyaXRlGhcKCGludm9pY2VzEgRyZWFkEgV3cml0ZRoPCgdvbmNoYWluEgRyZWFkAAAGIKdvFBF1c0vJu3VnZ9JjgI80idojo/PYc/6HwrldZYWD";
+						console.log( "here is what I will pass to the makeInvoice function:", endpoint, macaroon, senderamount, preimage, senderpmthash );
+						var invoice = await makeInvoice( endpoint, macaroon, senderamount, preimage, senderpmthash );
+						console.log( "here is the invoice the makeInvoice function gave me:", invoice );
+						var url = "http://localhost:8080/settle-after-proof/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid + "&invoice=" + invoice;
+						console.log( "here is the resulting url:", url );
+						var json = await settleVoucher( url );
+						var json = JSON.parse( json );
+						if ( json[ "status" ] == "success" ) {
+							document.getElementById( "error banner" ).style.display = "block";
+							document.getElementById( "error banner" ).style.backgroundColor = "green";
+							document.getElementById( "error banner" ).innerText = "You redeemed the voucher";
+						}
+					}
+					return i_am_the_owner;
+				}
+        	}
+		}
+	</script>
+	<script>
+		document.getElementById( "skip_the_loop" ).addEventListener( "click", function() {
+			var invoice = document.getElementById( "invoice" ).value;
+			askLightningEscrowToPayInvoice( invoice );
+		});
+		function isHex( string ) {
+			var a = parseInt( string, 16 );
+			return ( a.toString( 16 ) === string );
+		}
+		function askLightningEscrowToPayInvoice( invoice ) {
+			var url = "https://app6.lightningescrow.io/payinvoiceandsettlewithpreimage/?invoice=" + invoice;
+//			var url = escrow + "/payinvoiceandsettlewithpreimage/?invoice=" + invoice;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	var json = JSON.parse( xhttp.responseText );
+			        if ( json[ "status" ] == "success" ) {
+			        	console.log( "yay, they paid the voucher! Time to settle now" );
+			        } else {
+						document.getElementById( "error banner" ).style.display = "block";
+						document.getElementById( "error banner" ).style.backgroundColor = "red";
+						document.getElementById( "error banner" ).innerText = "We could not settle the invoice, please try again";
+			        }
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+		}
+		async function getVoucherInfoFromEscrow( voucherid ) {
+			var info = "";
+			var url = "http://localhost:8080/queryforvoucher/?voucherid=" + voucherid;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	info = xhttp.responseText;
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+	        async function isInfoSetYet( info_i_seek ) {
+	                return new Promise( function( resolve, reject ) {
+	                        if ( info_i_seek == "" ) {
+	                                setTimeout( async function() {
+	                                        var data = await isInfoSetYet( info );
+	                                        resolve( data );
+	                                }, 100 );
+	                        } else {
+	                                resolve( info_i_seek );
+	                        }
+	                });
+	        }
+	        async function getTimeoutData() {
+	                var info_i_seek = await isInfoSetYet( info );
+	                return info_i_seek;
+	        }
+	        var returnable = await getTimeoutData();
+	        return returnable;
+		}
+		async function proveOwnership( url ) {
+			var info = "";
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	info = xhttp.responseText;
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+	        async function isInfoSetYet( info_i_seek ) {
+	                return new Promise( function( resolve, reject ) {
+	                        if ( info_i_seek == "" ) {
+	                                setTimeout( async function() {
+	                                        var data = await isInfoSetYet( info );
+	                                        resolve( data );
+	                                }, 100 );
+	                        } else {
+	                                resolve( info_i_seek );
+	                        }
+	                });
+	        }
+	        async function getTimeoutData() {
+	                var info_i_seek = await isInfoSetYet( info );
+	                return info_i_seek;
+	        }
+	        var returnable = await getTimeoutData();
+	        return returnable;
+		}
+		async function checkIfScriptReturnsTrue( script, params ) {
+			var info = "";
+			var url = "http://localhost:8080/queryforvoucher/?voucherid=" + voucherid;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	info = xhttp.responseText;
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+	        async function isInfoSetYet( info_i_seek ) {
+	                return new Promise( function( resolve, reject ) {
+	                        if ( info_i_seek == "" ) {
+	                                setTimeout( async function() {
+	                                        var data = await isInfoSetYet( info );
+	                                        resolve( data );
+	                                }, 100 );
+	                        } else {
+	                                resolve( info_i_seek );
+	                        }
+	                });
+	        }
+	        async function getTimeoutData() {
+	                var info_i_seek = await isInfoSetYet( info );
+	                return info_i_seek;
+	        }
+	        var returnable = await getTimeoutData();
+	        return returnable;
+		}
+		async function settleVoucher( url ) {
+			var info = "";
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	info = xhttp.responseText;
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+	        async function isInfoSetYet( info_i_seek ) {
+	                return new Promise( function( resolve, reject ) {
+	                        if ( info_i_seek == "" ) {
+	                                setTimeout( async function() {
+	                                        var data = await isInfoSetYet( info );
+	                                        resolve( data );
+	                                }, 100 );
+	                        } else {
+	                                resolve( info_i_seek );
+	                        }
+	                });
+	        }
+	        async function getTimeoutData() {
+	                var info_i_seek = await isInfoSetYet( info );
+	                return info_i_seek;
+	        }
+	        var returnable = await getTimeoutData();
+	        return returnable;
+		}
+		function settleInvoice( preimage, endpoint, macaroon ) {
+			var url = "https://app7.lightningescrow.io/settle-lnd-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&preimage=" + preimage;
+//			var url = escrow + "/settle-lnd-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&preimage=" + preimage;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	var json = JSON.parse( xhttp.responseText );
+			        if ( json[ "status" ] == "success" ) {
+			        	console.log( "yay, you got the voucher!" );
+						document.getElementById( "error banner" ).style.display = "block";
+						document.getElementById( "error banner" ).style.backgroundColor = "green";
+						document.getElementById( "error banner" ).innerText = "Success, you redeemed the voucher";
+			        } else {
+						document.getElementById( "error banner" ).style.display = "block";
+						document.getElementById( "error banner" ).style.backgroundColor = "red";
+						document.getElementById( "error banner" ).innerText = "Redeeming your voucher failed, please try again";
+			        }
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+		}
+		function loopChecker( pmthash, endpoint, macaroon, preimage ) {
+			var url = "https://app7.lightningescrow.io/check-lnd-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&pmthash=" + pmthash;
+//			var url = escrow + "/check-lnd-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&pmthash=" + pmthash;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	var json = JSON.parse( xhttp.responseText );
+			        if ( json[ "state" ] == "ACCEPTED" ) {
+			    		console.log( "Time to settle the voucher!" );
+			        	settleInvoice( preimage, endpoint, macaroon );
+			        } else if ( json[ "state" ] != "SETTLED" ) {
+			        	console.log( json );
+			        	setTimeout( function() {loopChecker( pmthash, endpoint, macaroon, preimage );}, 5000 );
+			        } else {
+			    		console.log( "Well, you don't need me anymore" );
+			        }
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+		}
+		document.getElementById( "make invoice" ).addEventListener( "click", function() {makeInvoice();});
+		async function makeInvoice( endpoint = "", macaroon = "", settlable_amount = "", settlable_preimage = "", settlable_pmthash = "" ) {
+			var info = "";
+			if ( !endpoint || endpoint == "" ) {
+				var endpoint = document.getElementById( "endpoint" ).value;
+			}
+			if ( !macaroon || macaroon == "" ) {
+				var macaroon = document.getElementById( "macaroon" ).value;
+			}
+			if ( !settlable_amount || settlable_amount == "" ) {
+				var settlable_amount = amount;
+			}
+			if ( !settlable_preimage || settlable_preimage == "" ) {
+				var settlable_preimage = preimage;
+			}
+			if ( !settlable_pmthash || settlable_pmthash == "" ) {
+				var settlable_pmthash = pmthash;
+			}
+			document.getElementById( "error banner" ).style.display = "none";
+			dasub = endpoint.substring( 6 );
+			var does_substring_have_port = dasub.indexOf( ":" );
+			if ( !( does_substring_have_port >= 0 ) ) {
+			    endpoint = endpoint + ":8080";
+			}
+			if ( !endpoint.includes( "http" ) ) {
+				document.getElementById( "error banner" ).style.display = "block";
+				document.getElementById( "error banner" ).style.backgroundColor = "red";
+				document.getElementById( "error banner" ).innerText = "Endpoint must contain http or https prefix, please try again";
+				return;
+			}
+			if ( !isHex( macaroon ) ) {
+				macaroon = buffer.Buffer.from( macaroon, "base64" ).toString( "hex" );
+			}
+			var url = "https://app7.lightningescrow.io/get-lnd-hodl-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&amount=" + settlable_amount.toString() + "&memo=" + "redeeming%20your%20lightning%20evoucher" + "&pmthash=" + settlable_pmthash;
+//			var url = escrow + "/get-lnd-hodl-invoice/?endpoint=" + endpoint + "&macaroon=" + macaroon + "&amount=" + amount.toString() + "&memo=" + "redeeming%20your%20lightning%20evoucher" + "&pmthash=" + pmthash;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+			    if ( this.readyState == 4 && this.status == 200 ) {
+			    	var json = JSON.parse( xhttp.responseText );
+			        console.log( "send this invoice to lightning escrow:", json[ "invoice" ] );
+			        loopChecker( settlable_pmthash, endpoint, macaroon, settlable_preimage );
+			        info = json[ "invoice" ];
+			    }
+			}
+			xhttp.open( "GET", url, true );
+			xhttp.send();
+			console.log( endpoint, macaroon, settlable_preimage, settlable_pmthash, settlable_amount );
+			console.log( url );
+	        async function isInfoSetYet( info_i_seek ) {
+	                return new Promise( function( resolve, reject ) {
+	                        if ( info_i_seek == "" ) {
+	                                setTimeout( async function() {
+	                                        var data = await isInfoSetYet( info );
+	                                        resolve( data );
+	                                }, 100 );
+	                        } else {
+	                                resolve( info_i_seek );
+	                        }
+	                });
+	        }
+	        async function getTimeoutData() {
+	                var info_i_seek = await isInfoSetYet( info );
+	                return info_i_seek;
+	        }
+	        var returnable = await getTimeoutData();
+	        return returnable;
+		}
+	</script>
+ 	<script>
+ 		async function decideMessageTypeAndNextSteps( message, rider ) {
+ 			console.log( "test to see if this function is running" );
+            message = JSON.parse( message );
+            var type = message[ "type" ];
+            if ( type == "agree" ) {
+	            var voucherhex = message[ "voucher" ];
+	            var i_own_the_voucher_if_i_get_the_second_preimage = await provePendingOwnership( voucherhex );
+	            console.log( "I own the voucher if I get the second preimage, right?", i_own_the_voucher_if_i_get_the_second_preimage );
+	            if ( !i_own_the_voucher_if_i_get_the_second_preimage ) {
+	            	return;
+	            }
+	            sessionStorage[ "voucherhex" ] = voucherhex;
+	            var voucher = JSON.parse( buffer.Buffer.from( voucherhex, "hex" ).toString() );
+	            console.log( voucher );
+	            var contract = JSON.parse( sessionStorage[ "current-contract" ] );
+	            var from = contract[ "from" ];
+	            console.log( from );
+	            var url = "https://maps.google.com/?q=" + from[ "lat" ] + "," + from[ "lng" ];
+	            console.log( "click here to open google maps and pick up your rider:", url );
+	            var to = voucher[ "to" ];
+            }
+            if ( type == "finalize" ) {
+            	var preimage = message[ "preimage" ];
+            	var voucherhex = sessionStorage[ "voucherhex" ];
+            	var i_own_the_voucher = await proveFullOwnership( voucherhex, preimage );
+            	if ( i_own_the_voucher ) {
+            		console.log( "yay, now it is time to redeem the voucher!" );
+            	}
+			}
+ 		}
+ 	</script>
+	 </body>
+</html>
