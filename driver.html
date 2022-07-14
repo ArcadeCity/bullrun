@@ -397,7 +397,7 @@
 						document.getElementById( "error banner" ).innerText = "You own the voucher";
 						//var invoice = await makeInvoice( preimage );
 						var endpoint = "https://sats4tips.m.voltageapp.io:8080";
-						var macaroon = "AgEDbG5kAlgDChDOMYIL5fYtAG5idnYiIvDoEgEwGhYKB2FkZHJlc3MSBHJlYWQSBXdyaXRlGhcKCGludm9pY2VzEgRyZWFkEgV3cml0ZRoPCgdvbmNoYWluEgRyZWFkAAAGIKdvFBF1c0vJu3VnZ9JjgI80idojo/PYc/6HwrldZYWD";
+						var macaroon = "";
 						console.log( "here is what I will pass to the makeInvoice function:", endpoint, macaroon, senderamount, preimage, senderpmthash );
 						var invoice = await makeInvoice( endpoint, macaroon, senderamount, preimage, senderpmthash );
 						console.log( "here is the invoice the makeInvoice function gave me:", invoice );
