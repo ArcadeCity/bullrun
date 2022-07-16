@@ -21,4 +21,4 @@ There is a file called getandset.js which is used by the backend to store inform
 
 If you try to install the backend you'll need some dependencies:
 
-`npm install bitcoinjs-lib bolt11 vm2 ws browserify-cipher noble-secp256k1`
+`npm install bitcoinjs-lib bolt11 vm2 ws browserify-cipher noble-secp256k1 request`
