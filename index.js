@@ -64,7 +64,6 @@ async function getHodlInvoice( amount, hash, expiry = 40 ) {
   var invoice = "";
   const macaroon = invoicemac;
   const endpoint = lndendpoint;
-  console.log( macaroon, lndendpoint );
   let requestBody = {
       hash: Buffer.from( hash, "hex" ).toString( "base64" ),
       value: amount.toString(),
@@ -226,7 +225,7 @@ async function payInvoiceAndSettleWithPreimage( invoice ) {
     var preimage_for_settling_invoice_that_pays_me = await getTimeoutData();
         if ( preimage_for_settling_invoice_that_pays_me != "" ) {
             preimage_for_settling_invoice_that_pays_me = Buffer.from( preimage_for_settling_invoice_that_pays_me, "base64" ).toString( "hex" );
-            console.log( preimage_for_settling_invoice_that_pays_me );
+            console.log( "preimage that pays me:", preimage_for_settling_invoice_that_pays_me );
             settleHoldInvoice( preimage_for_settling_invoice_that_pays_me );
             returnable = '{"status": "success","preimage":"' + preimage_for_settling_invoice_that_pays_me + '"}';
         } else {
@@ -419,7 +418,6 @@ function isHex( h ) {
 
 async function getNote( id ) {
         var note = await getandset.getNote( id );
-        //console.log( "id", id, "note", note );
         return note;
 }
 
@@ -508,7 +506,6 @@ const requestListener = async function( request, response ) {
   }
   if ( path === '/gethodlinvoice' || path === '/gethodlinvoice/' ) {
     if ( request.method === 'GET' ) {
-      //console.log( "scripthash:", gets.scripthash );
       if ( ( !isHex( gets.scripthash ) || gets.scripthash.length != 64 ) || ( !isHex( gets.pmthash ) || gets.pmthash.length != 64 ) || ( !isHex( gets.querykey ) || gets.querykey.length != 66 ) ) {
               sendResponse( response, 'nice try!', 200, {'Content-Type': 'text/plain'} );
               return;
@@ -518,7 +515,6 @@ const requestListener = async function( request, response ) {
       json[ "scripthash" ] = gets.scripthash;
       json[ "amount" ] = gets.amount;
       json[ "querykey" ] = gets.querykey;
-      //console.log( "scripthash:", json[ "scripthash" ] );
       var voucher = JSON.stringify( json );
       var invoice = await getHodlInvoice( json[ "amount" ], json[ "pmthash" ], 1008 );
       var voucher_id = await setNote( voucher );
