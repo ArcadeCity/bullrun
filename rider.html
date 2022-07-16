@@ -312,7 +312,7 @@
 		function error( err ) {
 		  console.warn( 'ERROR( ' + err.code + ' ): ' + err.message );
 		}
-		function getFirstLocation() {
+		function getLocation() {
 		  if ( navigator.geolocation ) {
 		      id = navigator.geolocation.watchPosition( watchUsersPosition, error, options );
 		  } else {
@@ -345,7 +345,7 @@
 			}
 			if ( Object.keys( to ).length == 0 ) {
 		    	L.tileLayer( 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo( mymap );
-		    }
+                        }
 			from = L.marker( [ position.coords.latitude, position.coords.longitude ], {icon: redIcon} ).addTo( mymap );
 			console.log( "to length:", Object.keys( to ).length );
 			if ( Object.keys( to ).length > 0 ) {
@@ -365,257 +365,257 @@
 			mymap.on( 'click', function( e ) {
 				addMarker( e );
 			});
-		    function addMarkerByDragging( latlng ) {
-		    	if ( finalized == false ) {
-					if ( to != {} ) {
-						mymap.removeLayer( to );
-					}
-			        to = new L.Marker( latlng, { draggable: true, icon: redIcon } );
-			        to.on( 'dragend', function( event ) {
-			        	addMarkerByDragging( event.target._latlng );
-			        });
-			        mymap.addLayer( to );
-			        newdist = getDistance( from.getLatLng(), to.getLatLng() );
-			        if ( newdist != olddist ) {
-						console.log( newdist + ' mi' );
-						olddist = newdist;
-						var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
-						if ( dest_is_final ) {
-							console.log( "the destination is final" );
-							addFinalMarker( to.getLatLng() );
-						}
-					}
-				}
-		    };
-		    function addMarker( e ) {
-		    	if ( finalized == false ) {
-					if ( to != {} ) {
-						mymap.removeLayer( to );
-					}
-			        to = new L.Marker( e.latlng, { draggable: true, icon: redIcon } );
-			        to.on( 'dragend', function( event ) {
-			        	addMarkerByDragging( event.target._latlng );
-			        });
-			        mymap.addLayer( to );
-			        newdist = getDistance( from.getLatLng(), to.getLatLng() );
-			        if ( newdist != olddist ) {
-						console.log( newdist + ' mi' );
-						olddist = newdist;
-						var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
-						if ( dest_is_final ) {
-							console.log( "the destination is final" );
-							addFinalMarker( to.getLatLng() );
-						}
-					}
-				}
-			}
-		    async function addFinalMarker( latlng ) {
-		    	finalized = true;
-				if ( to != {} ) {
-					mymap.removeLayer( to );
-				}
-		        to = new L.Marker( latlng, { draggable: false, icon: redIcon } );
-		        mymap.addLayer( to );
-		        dist = getDistance( from.getLatLng(), to.getLatLng() );
-/*
-		        newdist = getDistance( from.getLatLng(), to.getLatLng() );
-		        if ( newdist != olddist ) {
-					console.log( newdist + ' mi' );
-					olddist = newdist;
-					var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
-					if ( dest_is_final ) {
-						console.log( "the destination is final" );
-					}
-				}
-*/
-				offeramt = prompt( "Please enter a number of sats you're willing to pay a driver to take you there (a good estimate is about a dollar a mile and your destination is " + newdist + " miles away)" );
-				offeramt = Number( offeramt );
-				if ( !offeramt ) {
-					window.location.reload();
-					return;
-				}
-				var fakename = prompt( "Please enter a fake name for your driver to identify you (a fake name is preferred because it will go on the public internet for all to see)" );
-				if ( !fakename ) {
-					console.log( "there was no fake name" );
-					window.location.reload();
-					return;
-				}
-				alert( "We are broadcasting your offer to nearby drivers." );
-				var current_timestamp = Number( Math.floor( Date.now() / 1000 ) );
-				var seconds_to_wait_for_a_driver_to_accept_your_offer = 300;
-				var offer = {}
-				offer[ "type" ] = "offer";
-				offer[ "from" ] = from.getLatLng();
-				offer[ "to" ] = to.getLatLng();
-				offer[ "amount" ] = offeramt;
-				offer[ "name" ] = fakename;
-				offer[ "expires" ] = Number( current_timestamp ) + Number( seconds_to_wait_for_a_driver_to_accept_your_offer );
-				console.log( "offer:", JSON.stringify( offer ) );
-				//broadcast the user's offer to nostr
-				putOfferOnNostr( offer );
-				var offer_was_broadcasted = true;
-			}
+                        function addMarkerByDragging( latlng ) {
+                        	if ( finalized == false ) {
+                        		if ( to != {} ) {
+                        			mymap.removeLayer( to );
+                        		}
+                                to = new L.Marker( latlng, { draggable: true, icon: redIcon } );
+                                to.on( 'dragend', function( event ) {
+                                	addMarkerByDragging( event.target._latlng );
+                                });
+                                mymap.addLayer( to );
+                                newdist = getDistance( from.getLatLng(), to.getLatLng() );
+                                if ( newdist != olddist ) {
+                        			console.log( newdist + ' mi' );
+                        			olddist = newdist;
+                        			var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
+                        			if ( dest_is_final ) {
+                        				console.log( "the destination is final" );
+                        				addFinalMarker( to.getLatLng() );
+                        			}
+                        		}
+                        	}
+                        };
+                        function addMarker( e ) {
+                        	if ( finalized == false ) {
+                                	if ( to != {} ) {
+                                		mymap.removeLayer( to );
+                                	}
+                                        to = new L.Marker( e.latlng, { draggable: true, icon: redIcon } );
+                                        to.on( 'dragend', function( event ) {
+                                        	addMarkerByDragging( event.target._latlng );
+                                        });
+                                        mymap.addLayer( to );
+                                        newdist = getDistance( from.getLatLng(), to.getLatLng() );
+                                        if ( newdist != olddist ) {
+                                		console.log( newdist + ' mi' );
+                                		olddist = newdist;
+                                		var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
+                                		if ( dest_is_final ) {
+                                			console.log( "the destination is final" );
+                                			addFinalMarker( to.getLatLng() );
+                                		}
+                                	}
+                                }
+                        }
+                        async function addFinalMarker( latlng ) {
+                            	finalized = true;
+                        		if ( to != {} ) {
+                        			mymap.removeLayer( to );
+                        		}
+                                to = new L.Marker( latlng, { draggable: false, icon: redIcon } );
+                                mymap.addLayer( to );
+                                dist = getDistance( from.getLatLng(), to.getLatLng() );
+                        /*
+                                newdist = getDistance( from.getLatLng(), to.getLatLng() );
+                                if ( newdist != olddist ) {
+                        			console.log( newdist + ' mi' );
+                        			olddist = newdist;
+                        			var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
+                        			if ( dest_is_final ) {
+                        				console.log( "the destination is final" );
+                        			}
+                        		}
+                        */
+                		offeramt = prompt( "Please enter a number of sats you're willing to pay a driver to take you there (a good estimate is about a dollar a mile and your destination is " + newdist + " miles away)" );
+                		offeramt = Number( offeramt );
+                		if ( !offeramt ) {
+                			window.location.reload();
+                			return;
+                		}
+                		var fakename = prompt( "Please enter a fake name for your driver to identify you (a fake name is preferred because it will go on the public internet for all to see)" );
+                		if ( !fakename ) {
+                			console.log( "there was no fake name" );
+                			window.location.reload();
+                			return;
+                		}
+                		alert( "We are broadcasting your offer to nearby drivers." );
+                		var current_timestamp = Number( Math.floor( Date.now() / 1000 ) );
+                		var seconds_to_wait_for_a_driver_to_accept_your_offer = 300;
+                		var offer = {}
+                		offer[ "type" ] = "offer";
+                		offer[ "from" ] = from.getLatLng();
+                		offer[ "to" ] = to.getLatLng();
+                		offer[ "amount" ] = offeramt;
+                		offer[ "name" ] = fakename;
+                		offer[ "expires" ] = Number( current_timestamp ) + Number( seconds_to_wait_for_a_driver_to_accept_your_offer );
+                		console.log( "offer:", JSON.stringify( offer ) );
+                		//broadcast the user's offer to nostr
+                		putOfferOnNostr( offer );
+                		var offer_was_broadcasted = true;
+                        }
 		}
-		getFirstLocation();
+		getLocation();
 		function showSubsequentPositions( position ) {
 			mymap.removeLayer( from );
 			from = L.marker( [ position.coords.latitude, position.coords.longitude ], {icon: redIcon} ).addTo( mymap );
 		}
-	 </script>
-	 	<script>
-	 		var escrow = "https://app7.lightningescrow.io";
-	 		function createQR( content ) {
-	 		        var dataUriPngImage = document.createElement( "img" ),
-	 		        s = QRCode.generatePNG( content, {
-	 		                ecclevel: "M",
-	 		                format: "html",
-	 		                fillcolor: "#FFFFFF",
-	 		                textcolor: "#373737",
-	 		                margin: 4,
-	 		                modulesize: 8,
-	 		        });
-	 		        dataUriPngImage.src = s;
-	 		        dataUriPngImage.id = "qr_code";
-	 		        dataUriPngImage.style.display = "block";
-	 		        dataUriPngImage.style.margin = "auto";
-	 		        dataUriPngImage.style.width = "100%";
-	 		        dataUriPngImage.style.maxWidth = "300px";
-	 		        return dataUriPngImage;
-	 		}
-	 		function loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage ) {
-	 			var url = "https://app6.lightningescrow.io/getinvoicestatusv2/?pmthash=" + pmthash;
-	 			var xhttp = new XMLHttpRequest();
-	 			xhttp.onreadystatechange = function() {
-	 			    if ( this.readyState == 4 && this.status == 200 ) {
-	 			        if ( xhttp.responseText == "ACCEPTED" ) {
-	 			        	console.log( xhttp.responseText );
-	 			        	var voucher = {}
-	 			        	voucher[ "preimage" ] = preimage;
-	 			        	voucher[ "lockinghash" ] = lockinghash;
-	 			        	voucher[ "voucherid" ] = voucherid;
-	 			        	voucher[ "querykey" ] = querykey;
-	 			        	voucher[ "amount" ] = amount;
-	 			        	voucher[ "escrow" ] = escrow;
-	 			        	voucher[ "templatehash" ] = templatehash;
-	 			        	voucher = JSON.stringify( voucher );
-	 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
-	 				        console.log( "here is the voucher:", voucher );
-	 				        console.log( "here is the voucher in hex:", voucherhex );
-	 				        //send the voucherhex to the driver in a nostr dm
-	 				        var message = {}
-	 				        message[ "type" ] = "agree";
-	 				        message[ "voucher" ] = voucherhex;
-	 				        message = JSON.stringify( message );
-	 				        sessionStorage[ "driver" ] = drivercommskey;
-	 						makePrivateNote( message, drivercommskey );
-							document.getElementById( "invoice box" ).style.display = "none";
-							document.getElementById( "preimage box" ).style.display = "block";
-							alert( "Your driver is on the way. You can track them on the map. Please show them the qr code under the map when your ride is over, your driver will use it to collect your money." );
-		 					document.getElementById( "preimage qr" ).append( createQR( second_preimage ) );
-		 					document.getElementById( "preimage text" ).innerText = second_preimage;
-		 					document.getElementById( "preimage box" ).style.display = "block";
-		 					sessionStorage[ "second_preimage" ] = second_preimage;
-							//remember to show the driver's location on the map
-							//let the rider share their live location with a friend. Girl riders feel more comfortable if someone knows they are with a stranger and where they are
-	 			        } else if ( xhttp.responseText != "SETTLED" ) {
-	 			        	console.log( xhttp.responseText );
-	 			        	var voucher = {}
-	 			        	voucher[ "preimage" ] = preimage;
-	 			        	voucher[ "lockinghash" ] = lockinghash;
-	 			        	voucher[ "voucherid" ] = voucherid;
-	 			        	voucher[ "querykey" ] = querykey;
-	 			        	voucher[ "amount" ] = amount;
-	 			        	voucher[ "escrow" ] = escrow;
-	 			        	voucher[ "templatehash" ] = templatehash;
-	 			        	voucher = JSON.stringify( voucher );
-	 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
-	 			        	console.log( "do not show the voucher yet...but here it is:", voucher );
-	 			        	console.log( "and here is the voucher in hex:", voucherhex );
-	 			        	setTimeout( function() {loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage );}, 5000 );
-	 			        } else {
-	 			    		console.log( "Well, you don't need me anymore" );
-	 			        }
-	 			    }
-	 			}
-	 			xhttp.open( "GET", url, true );
-	 			xhttp.send();
-	 		}
-	 		function makeVoucher( hash, drivercommskey, driverpubkey, second_preimage ) {
-	 			var lockinghash = hash;
-	 			var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
-	 			var preimage = bitcoinjs.ECPair.makeRandom().__D.toString( "hex" );
-	 			var pmthash = bitcoinjs.crypto.sha256( buffer.Buffer.from( preimage, "hex" ) ).toString( "hex" );
-	 			var template = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
-	 			var templatehash = bitcoinjs.crypto.sha256( template ).toString( "hex" );
-	 			var script = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == "` + hash + `" ) {return nobleSecp256k1.verify( signature, "` + challenge + `", "` + driverpubkey + `" );}}`;
-	            var scripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
-	            console.log( "here is the script:", script );
-	            console.log( "here is the script hash:", scripthash );
-	 			var amount = offeramt;
-	            var querykey = bitcoinjs.ECPair.makeRandom();
-	            var queryprivkey = querykey.privateKey.toString( "hex" );
-	            var querypubkey = querykey.publicKey.toString( "hex" );
-	            var url = "http://localhost:8080/gethodlinvoice/?pmthash=" + pmthash + "&scripthash=" + scripthash + "&amount=" + amount.toString() +
-	             "&querykey=" + querypubkey;
-	 			var xhttp = new XMLHttpRequest();
-	 			xhttp.onreadystatechange = function() {
-	 			    if ( this.readyState == 4 && this.status == 200 ) {
-	                    var prepjson = xhttp.responseText;
-	                    prepjson = prepjson.substring( 0, prepjson.indexOf( "}" ) + 1 );
-	                    console.log( prepjson );
-	                    var json = JSON.parse( prepjson );
-	                    console.log( [1] );
-	                    var invoice = json[ "invoice" ];
-	                    var voucherid = json[ "voucher_id" ];
-	                    console.log( "invoice:", invoice );
-	                    console.log( "voucherid:", voucherid );
-	 					document.getElementById( "invoice qr" ).append( createQR( invoice ) );
-	 					document.getElementById( "invoice text" ).innerText = invoice;
-	 					document.getElementById( "invoice box" ).style.display = "block";
-	 			        console.log( "pay this invoice:", invoice );
-	                    console.log( "voucherid right before it gets passed to loopchecker:", voucherid );
-	 			        loopChecker( pmthash, preimage, amount, voucherid, queryprivkey, templatehash, lockinghash, drivercommskey, second_preimage );
-	 			    }
-	 			}
-	 			xhttp.open( "GET", url, true );
-	 			xhttp.send();
-	 		}
-	 	</script>
-	 	<script>
-	 		function decideMessageTypeAndNextSteps( message, driver ) {
-                message = JSON.parse( message );
-                var type = message[ "type" ];
-                var name = message[ "name" ];
-                var vehicle = message[ "vehicle" ];
-                var coordinates = message[ "coordinates" ];
-                var coordinatesobj = L.marker( coordinates );
-                var driver_dist = getDistance( from.getLatLng(), coordinatesobj.getLatLng() );
-                if ( type == "acceptance" ) {
-                	var driver_was_found = confirm( "Click ok if you want " + name + " to pick you up in their " + vehicle + ", they are currently " + driver_dist + " miles away" );
-                }
-				if ( !driver_was_found ) {
-					return;
-				}
-				//send a message to nostr marking the offer message fulfilled
-				var offer_was_marked_fulfilled = true;
-				var recipient = message[ "pubkey" ];
-				//create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
-				var second_preimage = bitcoinjs.ECPair.makeRandom().privateKey.toString( "hex" );
-				console.log( "here is the preimage the driver will eventually get assuming no dispute:", second_preimage );
-				var hash = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
-				makeVoucher( hash, driver, recipient, second_preimage );
-	 		}
-	 	</script>
-	 	<script>
-	 		function finalizeAll() {
-				var message = {}
-				message[ "type" ] = "finalize";
-				message[ "preimage" ] = sessionStorage[ "second_preimage" ];
-				message = JSON.stringify( message );
-				var drivercommskey = sessionStorage[ "driver" ];
-				makePrivateNote( message, drivercommskey );
-				console.log( "congratulations, you reached your destination" );
-	 		}
-	 	</script>
+	</script>
+ 	<script>
+ 		var escrow = "https://app7.lightningescrow.io";
+ 		function createQR( content ) {
+ 		        var dataUriPngImage = document.createElement( "img" ),
+ 		        s = QRCode.generatePNG( content, {
+ 		                ecclevel: "M",
+ 		                format: "html",
+ 		                fillcolor: "#FFFFFF",
+ 		                textcolor: "#373737",
+ 		                margin: 4,
+ 		                modulesize: 8,
+ 		        });
+ 		        dataUriPngImage.src = s;
+ 		        dataUriPngImage.id = "qr_code";
+ 		        dataUriPngImage.style.display = "block";
+ 		        dataUriPngImage.style.margin = "auto";
+ 		        dataUriPngImage.style.width = "100%";
+ 		        dataUriPngImage.style.maxWidth = "300px";
+ 		        return dataUriPngImage;
+ 		}
+ 		function loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage ) {
+ 			var url = "https://app6.lightningescrow.io/getinvoicestatusv2/?pmthash=" + pmthash;
+ 			var xhttp = new XMLHttpRequest();
+ 			xhttp.onreadystatechange = function() {
+ 			    if ( this.readyState == 4 && this.status == 200 ) {
+ 			        if ( xhttp.responseText == "ACCEPTED" ) {
+ 			        	console.log( xhttp.responseText );
+ 			        	var voucher = {}
+ 			        	voucher[ "preimage" ] = preimage;
+ 			        	voucher[ "lockinghash" ] = lockinghash;
+ 			        	voucher[ "voucherid" ] = voucherid;
+ 			        	voucher[ "querykey" ] = querykey;
+ 			        	voucher[ "amount" ] = amount;
+ 			        	voucher[ "escrow" ] = escrow;
+ 			        	voucher[ "templatehash" ] = templatehash;
+ 			        	voucher = JSON.stringify( voucher );
+ 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
+ 				        console.log( "here is the voucher:", voucher );
+ 				        console.log( "here is the voucher in hex:", voucherhex );
+ 				        //send the voucherhex to the driver in a nostr dm
+ 				        var message = {}
+ 				        message[ "type" ] = "agree";
+ 				        message[ "voucher" ] = voucherhex;
+ 				        message = JSON.stringify( message );
+ 				        sessionStorage[ "driver" ] = drivercommskey;
+ 						makePrivateNote( message, drivercommskey );
+						document.getElementById( "invoice box" ).style.display = "none";
+						document.getElementById( "preimage box" ).style.display = "block";
+						alert( "Your driver is on the way. You can track them on the map. Please show them the qr code under the map when your ride is over, your driver will use it to collect your money." );
+	 					document.getElementById( "preimage qr" ).append( createQR( second_preimage ) );
+	 					document.getElementById( "preimage text" ).innerText = second_preimage;
+	 					document.getElementById( "preimage box" ).style.display = "block";
+	 					sessionStorage[ "second_preimage" ] = second_preimage;
+						//remember to show the driver's location on the map
+						//let the rider share their live location with a friend. Girl riders feel more comfortable if someone knows they are with a stranger and where they are
+ 			        } else if ( xhttp.responseText != "SETTLED" ) {
+ 			        	console.log( xhttp.responseText );
+ 			        	var voucher = {}
+ 			        	voucher[ "preimage" ] = preimage;
+ 			        	voucher[ "lockinghash" ] = lockinghash;
+ 			        	voucher[ "voucherid" ] = voucherid;
+ 			        	voucher[ "querykey" ] = querykey;
+ 			        	voucher[ "amount" ] = amount;
+ 			        	voucher[ "escrow" ] = escrow;
+ 			        	voucher[ "templatehash" ] = templatehash;
+ 			        	voucher = JSON.stringify( voucher );
+ 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
+ 			        	console.log( "do not show the voucher yet...but here it is:", voucher );
+ 			        	console.log( "and here is the voucher in hex:", voucherhex );
+ 			        	setTimeout( function() {loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage );}, 5000 );
+ 			        } else {
+ 			    		console.log( "Well, you don't need me anymore" );
+ 			        }
+ 			    }
+ 			}
+ 			xhttp.open( "GET", url, true );
+ 			xhttp.send();
+ 		}
+ 		function makeVoucher( hash, drivercommskey, driverpubkey, second_preimage ) {
+ 			var lockinghash = hash;
+ 			var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+ 			var preimage = bitcoinjs.ECPair.makeRandom().__D.toString( "hex" );
+ 			var pmthash = bitcoinjs.crypto.sha256( buffer.Buffer.from( preimage, "hex" ) ).toString( "hex" );
+ 			var template = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
+ 			var templatehash = bitcoinjs.crypto.sha256( template ).toString( "hex" );
+ 			var script = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == "` + hash + `" ) {return nobleSecp256k1.verify( signature, "` + challenge + `", "` + driverpubkey + `" );}}`;
+            var scripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
+            console.log( "here is the script:", script );
+            console.log( "here is the script hash:", scripthash );
+ 			var amount = offeramt;
+            var querykey = bitcoinjs.ECPair.makeRandom();
+            var queryprivkey = querykey.privateKey.toString( "hex" );
+            var querypubkey = querykey.publicKey.toString( "hex" );
+            var url = "https://app9.lightningescrow.io/gethodlinvoice/?pmthash=" + pmthash + "&scripthash=" + scripthash + "&amount=" + amount.toString() +
+             "&querykey=" + querypubkey;
+ 			var xhttp = new XMLHttpRequest();
+ 			xhttp.onreadystatechange = function() {
+ 			    if ( this.readyState == 4 && this.status == 200 ) {
+                    var prepjson = xhttp.responseText;
+                    prepjson = prepjson.substring( 0, prepjson.indexOf( "}" ) + 1 );
+                    console.log( prepjson );
+                    var json = JSON.parse( prepjson );
+                    console.log( [1] );
+                    var invoice = json[ "invoice" ];
+                    var voucherid = json[ "voucher_id" ];
+                    console.log( "invoice:", invoice );
+                    console.log( "voucherid:", voucherid );
+ 					document.getElementById( "invoice qr" ).append( createQR( invoice ) );
+ 					document.getElementById( "invoice text" ).innerText = invoice;
+ 					document.getElementById( "invoice box" ).style.display = "block";
+ 			        console.log( "pay this invoice:", invoice );
+                    console.log( "voucherid right before it gets passed to loopchecker:", voucherid );
+ 			        loopChecker( pmthash, preimage, amount, voucherid, queryprivkey, templatehash, lockinghash, drivercommskey, second_preimage );
+ 			    }
+ 			}
+ 			xhttp.open( "GET", url, true );
+ 			xhttp.send();
+ 		}
+ 	</script>
+ 	<script>
+ 		function decideMessageTypeAndNextSteps( message, driver ) {
+        message = JSON.parse( message );
+        var type = message[ "type" ];
+        var name = message[ "name" ];
+        var vehicle = message[ "vehicle" ];
+        var coordinates = message[ "coordinates" ];
+        var coordinatesobj = L.marker( coordinates );
+        var driver_dist = getDistance( from.getLatLng(), coordinatesobj.getLatLng() );
+        if ( type == "acceptance" ) {
+        	var driver_was_found = confirm( "Click ok if you want " + name + " to pick you up in their " + vehicle + ", they are currently " + driver_dist + " miles away" );
+        }
+			if ( !driver_was_found ) {
+				return;
+			}
+			//send a message to nostr marking the offer message fulfilled
+			var offer_was_marked_fulfilled = true;
+			var recipient = message[ "pubkey" ];
+			//create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
+			var second_preimage = bitcoinjs.ECPair.makeRandom().privateKey.toString( "hex" );
+			console.log( "here is the preimage the driver will eventually get assuming no dispute:", second_preimage );
+			var hash = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
+			makeVoucher( hash, driver, recipient, second_preimage );
+ 		}
+ 	</script>
+ 	<script>
+ 		function finalizeAll() {
+			var message = {}
+			message[ "type" ] = "finalize";
+			message[ "preimage" ] = sessionStorage[ "second_preimage" ];
+			message = JSON.stringify( message );
+			var drivercommskey = sessionStorage[ "driver" ];
+			makePrivateNote( message, drivercommskey );
+			console.log( "congratulations, you reached your destination" );
+ 		}
+ 	</script>
 </body>
 </html>
