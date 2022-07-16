@@ -647,7 +647,10 @@
 			xhttp.open( "GET", url, true );
 			xhttp.send();
 		}
-		document.getElementById( "make invoice" ).addEventListener( "click", function() {makeInvoice();});
+		document.getElementById( "make invoice" ).addEventListener( "click", function() {
+			//makeInvoice();
+			alert( "your endpoint and macaroon are saved, continue" );
+		});
 		async function makeInvoice( endpoint = "", macaroon = "", settlable_amount = "", settlable_preimage = "", settlable_pmthash = "" ) {
 			var info = "";
 			if ( !endpoint || endpoint == "" ) {
