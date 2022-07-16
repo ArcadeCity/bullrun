@@ -7,6 +7,12 @@
 	<script src="https://bundle.run/bip39@3.0.4"></script>
 	<script src="https://bundle.run/bip32@2.0.6"></script>
 	<script src="https://bundle.run/browserify-cipher@1.0.1"></script>
+
+	<script>
+			var lndendpoint = "";
+			var lndmacaroon = "";
+	</script>
+
 	<script>
 	        function computeRawPrivkey( node ) {
 	                return bitcoinjs.ECPair.fromPrivateKey( node.privateKey, { network: bitcoinjs.networks.mainnet } );
@@ -37,6 +43,46 @@
 	        privKey = privKey.__D.toString( 'hex' );
 	        var pubKey = nobleSecp256k1.getPublicKey( privKey, true );
 	        var pubKeyMinus2 = pubKey.substring( 2 );
+	</script>
+	<script>
+		var options;
+		options = {
+		  enableHighAccuracy: true,
+		  timeout: 15000,
+		  maximumAge: 5000
+		};
+		function error( err ) {
+		  console.warn( 'ERROR( ' + err.code + ' ): ' + err.message );
+		}
+		function getLocation() {
+		  if ( navigator.geolocation ) {
+		      id = navigator.geolocation.watchPosition( watchUsersPosition, error, options );
+		  } else {
+		      console.error( "Geolocation is not supported by this browser." );
+		  }
+		}
+		var from = {};
+		var to = {};
+		var olddist = "";
+		var finalized = false;
+		var offeramt = "";
+		function getDistance( from, to ) {
+		    return ( from.distanceTo( to ).toFixed( 0 ) / 1609.344 ).toFixed( 3 );
+		}
+		function watchUsersPosition( position ) {
+			//update a sessionstorage variable every ten seconds with the driver's position
+			var location = {"lat":position.coords.latitude,"lng":position.coords.longitude}
+			location = JSON.stringify( location );
+			sessionStorage[ "location" ] = location;
+			document.getElementById( "getting-location" ).style.display = "none";
+			document.getElementById( "content" ).style.display = "block";
+		}
+		var fakename = prompt( "Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)" );
+		var vehicle = prompt( "Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle" );
+		sessionStorage[ "privkey" ] = buffer.Buffer.from( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" );
+		sessionStorage[ "driver-name" ] = fakename;
+	    sessionStorage[ "vehicle-description" ] = vehicle;
+		getLocation();
 	</script>
 	<script>
 	        function normalizeRelayURL(e){let[t,...r]=e.trim().split("?");return"http"===t.slice(0,4)&&(t="ws"+t.slice(4)),"ws"!==t.slice(0,2)&&(t="wss://"+t),t.length&&"/"===t[t.length-1]&&(t=t.slice(0,-1)),[t,...r].join("?")}
@@ -124,10 +170,10 @@
 	                        sessionStorage[ "current-contract" ] = JSON.stringify( json );
 	                        var message = {}
 	                        message[ "type" ] = "acceptance";
-	                        message[ "name" ] = "Billy Bob Thorton";
-	                        message[ "vehicle" ] = "white Ford mustang";
-	                        message[ "coordinates" ] = {"lat":35.2423,"lng":-100.7672}
-							var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+	                        message[ "name" ] = sessionStorage[ "driver-name" ];
+	                        message[ "vehicle" ] = sessionStorage[ "vehicle-description" ];
+	                        message[ "coordinates" ] = JSON.parse( sessionStorage[ "location" ] );
+							var driver_privkey = sessionStorage[ "privkey" ];
 			        		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
 	                        message[ "pubkey" ] = pubkey;
 	                        message = JSON.stringify( message );
@@ -215,60 +261,58 @@
 	</script>
 	<script type="text/javascript">var link = document.createElement("link");link.rel="stylesheet";link.href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css";link.integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==";link.setAttribute("crossorigin", "");document.getElementsByTagName("head")[0].appendChild(link);</script>
 	<script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og==" crossorigin=""></script>
-	<script>
-		function getDistance( from, to ) {
-	    	return ( from.distanceTo( to ).toFixed( 0 ) / 1609.344 ).toFixed( 3 );
-		}
-	</script>
 </head>
 <body>
-        <script>
-            var template1 = `function script( params ) {var signature = params[ 0 ];return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}`;
-            var template1hash = bitcoinjs.crypto.sha256( template1 ).toString( "hex" );
-            function reviseTemplate1( challenge, pubkey ) {
-                var revisedscript = template1.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
-                return revisedscript;
-            }
-            var template2 = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
-            var template2hash = bitcoinjs.crypto.sha256( template2 ).toString( "hex" );
-            function reviseTemplate2( hash, challenge, pubkey ) {
-                var revisedscript = template2.replace( /@.*?(@)/, '"' + hash + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
-                return revisedscript;
-            }
-        </script>
-	<div id="error banner" style="background-color: red; color: white; font-weight: bold; padding: 5px; font-family: sans-serif; display: none;"></div>
-	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-		<h2>Prove your ownership of your voucher (pending the second preimage).</h2>
-		<p>Enter your voucher</p>
-		<p><input type="text" id="voucher" /></p>
-		<p><button id="prove ownership pending second preimage">Submit</button></p>
-	</div>
-	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-		<h2>Prove full ownership of your voucher</h2>
-		<p>Enter your voucher</p>
-		<p><input type="text" id="voucher" /></p>
-		<p>Enter the second preimage</p>
-		<p><input type="text" id="preimage" /></p>
-		<p><button id="prove ownership">Submit</button></p>
-	</div>
-	<p>----- OR -----</p>
-	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-		<h2>Get your rest api endpoint and your invoice macaroon from your umbrel, mynode, voltage, or other node.</h2>
-		<p>Rest api endpoint</p>
-		<p><input type="text" id="endpoint" /></p>
-		<p>Invoice macaroon</p>
-		<p><input type="text" id="macaroon" /></p>
-		<p><button id="make invoice">Submit</button></p>
-	</div>
-	<p>----- OR -----</p>
-	<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-		<h2>Create an invoice by running this command in your node:</h2>
-		<div id="terminal instructions" style="word-break: break-all; border: 1px solid black; background-color: #cccccc; padding: 5px;">
+    <script>
+        var template1 = `function script( params ) {var signature = params[ 0 ];return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}`;
+        var template1hash = bitcoinjs.crypto.sha256( template1 ).toString( "hex" );
+        function reviseTemplate1( challenge, pubkey ) {
+            var revisedscript = template1.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
+            return revisedscript;
+        }
+        var template2 = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
+        var template2hash = bitcoinjs.crypto.sha256( template2 ).toString( "hex" );
+        function reviseTemplate2( hash, challenge, pubkey ) {
+            var revisedscript = template2.replace( /@.*?(@)/, '"' + hash + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + challenge + '"' );revisedscript = revisedscript.replace( /@.*?(@)/, '"' + pubkey + '"' );
+            return revisedscript;
+        }
+    </script>
+	<div id="getting-location">Getting your location...</div>
+    <div id="content" style="display: none;">
+		<div id="error banner" style="background-color: red; color: white; font-weight: bold; padding: 5px; font-family: sans-serif; display: none;"></div>
+		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+			<h2>Prove your ownership of your voucher (pending the second preimage).</h2>
+			<p>Enter your voucher</p>
+			<p><input type="text" id="voucher" /></p>
+			<p><button id="prove ownership pending second preimage">Submit</button></p>
 		</div>
-		<h2>Then copy-paste the resulting payment request here to redeem your voucher:</h2>
-		<p>Invoice</p>
-		<p><input type="text" id="invoice" /></p>
-		<p><button id="skip_the_loop">Submit</button></p>
+		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+			<h2>Prove full ownership of your voucher</h2>
+			<p>Enter your voucher</p>
+			<p><input type="text" id="voucher" /></p>
+			<p>Enter the second preimage</p>
+			<p><input type="text" id="preimage" /></p>
+			<p><button id="prove ownership">Submit</button></p>
+		</div>
+		<p>----- OR -----</p>
+		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+			<h2>Get your rest api endpoint and your invoice macaroon from your umbrel, mynode, voltage, or other node.</h2>
+			<p>Rest api endpoint</p>
+			<p><input type="text" id="endpoint" /></p>
+			<p>Invoice macaroon</p>
+			<p><input type="text" id="macaroon" /></p>
+			<p><button id="make invoice">Submit</button></p>
+		</div>
+		<p>----- OR -----</p>
+		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+			<h2>Create an invoice by running this command in your node:</h2>
+			<div id="terminal instructions" style="word-break: break-all; border: 1px solid black; background-color: #cccccc; padding: 5px;">
+			</div>
+			<h2>Then copy-paste the resulting payment request here to redeem your voucher:</h2>
+			<p>Invoice</p>
+			<p><input type="text" id="invoice" /></p>
+			<p><button id="skip_the_loop">Submit</button></p>
+		</div>
 	</div>
 	<script>
 		//document.getElementById( "terminal instructions" ).innerText = "lncli addinvoice --amt " + amount + " --preimage " + preimage;
@@ -289,7 +333,7 @@
         	var lockinghash_according_to_user = voucher[ "lockinghash" ];
         	var templatehash = voucher[ "templatehash" ];
         	if ( templatehash == template2hash ) {
-				var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+				var driver_privkey = sessionStorage[ "privkey" ];
         		var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
         		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
 				var script = reviseTemplate2( lockinghash_according_to_user, challenge, pubkey );
@@ -346,7 +390,7 @@
         	var lockinghash_according_to_user = voucher[ "lockinghash" ];
         	var templatehash = voucher[ "templatehash" ];
         	if ( templatehash == template2hash ) {
-				var driver_privkey = bitcoinjs.crypto.sha256( "test2" ).toString( "hex" );
+				var driver_privkey = sessionStorage[ "privkey" ];
         		var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
         		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
         		//var lockinghash_based_on_preimage = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
@@ -382,7 +426,7 @@
 					return false;
 				}
 				if ( senderscripthash == escrowscripthash ) {
-					var url = "http://localhost:8080/verify-ownership/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid;
+					var url = "https://app9.lightningescrow.io/verify-ownership/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid;
 					//query whether it returns true or false -- if it returns true, you are the voucher owner, yay!
 					var i_am_the_owner = await proveOwnership( url );
 					if ( i_am_the_owner == "true" ) {
@@ -396,12 +440,10 @@
 						document.getElementById( "error banner" ).style.backgroundColor = "green";
 						document.getElementById( "error banner" ).innerText = "You own the voucher";
 						//var invoice = await makeInvoice( preimage );
-						var endpoint = "https://sats4tips.m.voltageapp.io:8080";
-						var macaroon = "";
-						console.log( "here is what I will pass to the makeInvoice function:", endpoint, macaroon, senderamount, preimage, senderpmthash );
-						var invoice = await makeInvoice( endpoint, macaroon, senderamount, preimage, senderpmthash );
+						console.log( "here is what I will pass to the makeInvoice function:", lndendpoint, lndmacaroon, senderamount, preimage, senderpmthash );
+						var invoice = await makeInvoice( lndendpoint, lndmacaroon, senderamount, preimage, senderpmthash );
 						console.log( "here is the invoice the makeInvoice function gave me:", invoice );
-						var url = "http://localhost:8080/settle-after-proof/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid + "&invoice=" + invoice;
+						var url = "https://app9.lightningescrow.io/settle-after-proof/?script=" + scriptinhex + "&params=" + paramsinhex + "&voucherid=" + voucherid + "&invoice=" + invoice;
 						console.log( "here is the resulting url:", url );
 						var json = await settleVoucher( url );
 						var json = JSON.parse( json );
@@ -446,7 +488,7 @@
 		}
 		async function getVoucherInfoFromEscrow( voucherid ) {
 			var info = "";
-			var url = "http://localhost:8080/queryforvoucher/?voucherid=" + voucherid;
+			var url = "https://app9.lightningescrow.io/queryforvoucher/?voucherid=" + voucherid;
 			var xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function() {
 			    if ( this.readyState == 4 && this.status == 200 ) {
@@ -505,7 +547,7 @@
 		}
 		async function checkIfScriptReturnsTrue( script, params ) {
 			var info = "";
-			var url = "http://localhost:8080/queryforvoucher/?voucherid=" + voucherid;
+			var url = "https://app9.lightningescrow.io/queryforvoucher/?voucherid=" + voucherid;
 			var xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function() {
 			    if ( this.readyState == 4 && this.status == 200 ) {
@@ -705,5 +747,5 @@
 			}
  		}
  	</script>
-	 </body>
+</body>
 </html>
