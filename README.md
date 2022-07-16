@@ -16,3 +16,9 @@ At this point rider.html will continue tracking the rider's location until the d
 # More broken things
 
 There is a file called getandset.js which is used by the backend to store information on nostr and retrieve it. But it works very imperfectly due to a bug I am having trouble understanding. Basically it works great the first time you use it, but the second time it works a little less well, namely, it fires off multiple queries to nostr and not all of them appear to return accurate information. Every subsequent time you use it, it will fire off more and more bad queries to nostr, getting up to hundreds of queries after four or five uses, at which point it will consume too much of nodejs's memory limits and crash. I don't know why it does this but I think I am using websockets incorrectly.
+
+# Dependencies
+
+If you try to install the backend you'll need some dependencies:
+
+`npm install bitcoinjs-lib bolt11 vm2 ws browserify-cipher noble-secp256k1`
