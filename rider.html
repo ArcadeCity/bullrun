@@ -331,8 +331,17 @@
 			popupAnchor: [1, -34],
 			shadowSize: [41, 41]
 		});
+                var carIcon = new L.Icon({
+                        iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Blue_old_car.svg/320px-Blue_old_car.svg.png',
+                        shadowUrl: '',
+                        iconSize: [50, 20],
+                        iconAnchor: [6, 20],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                });
 		var from = {};
 		var to = {};
+                var driverimg = {};
 		var olddist = "";
 		var finalized = false;
 		var offeramt = "";
@@ -548,33 +557,33 @@
  			var template = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
  			var templatehash = bitcoinjs.crypto.sha256( template ).toString( "hex" );
  			var script = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == "` + hash + `" ) {return nobleSecp256k1.verify( signature, "` + challenge + `", "` + driverpubkey + `" );}}`;
-            var scripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
-            console.log( "here is the script:", script );
-            console.log( "here is the script hash:", scripthash );
+                        var scripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
+                        console.log( "here is the script:", script );
+                        console.log( "here is the script hash:", scripthash );
  			var amount = offeramt;
-            var querykey = bitcoinjs.ECPair.makeRandom();
-            var queryprivkey = querykey.privateKey.toString( "hex" );
-            var querypubkey = querykey.publicKey.toString( "hex" );
-            var url = "https://app9.lightningescrow.io/gethodlinvoice/?pmthash=" + pmthash + "&scripthash=" + scripthash + "&amount=" + amount.toString() +
-             "&querykey=" + querypubkey;
- 			var xhttp = new XMLHttpRequest();
- 			xhttp.onreadystatechange = function() {
- 			    if ( this.readyState == 4 && this.status == 200 ) {
-                    var prepjson = xhttp.responseText;
-                    prepjson = prepjson.substring( 0, prepjson.indexOf( "}" ) + 1 );
-                    console.log( prepjson );
-                    var json = JSON.parse( prepjson );
-                    console.log( [1] );
-                    var invoice = json[ "invoice" ];
-                    var voucherid = json[ "voucher_id" ];
-                    console.log( "invoice:", invoice );
-                    console.log( "voucherid:", voucherid );
- 					document.getElementById( "invoice qr" ).append( createQR( invoice ) );
- 					document.getElementById( "invoice text" ).innerText = invoice;
- 					document.getElementById( "invoice box" ).style.display = "block";
- 			        console.log( "pay this invoice:", invoice );
-                    console.log( "voucherid right before it gets passed to loopchecker:", voucherid );
- 			        loopChecker( pmthash, preimage, amount, voucherid, queryprivkey, templatehash, lockinghash, drivercommskey, second_preimage );
+                        var querykey = bitcoinjs.ECPair.makeRandom();
+                        var queryprivkey = querykey.privateKey.toString( "hex" );
+                        var querypubkey = querykey.publicKey.toString( "hex" );
+                        var url = "https://app9.lightningescrow.io/gethodlinvoice/?pmthash=" + pmthash + "&scripthash=" + scripthash + "&amount=" + amount.toString() +
+                             "&querykey=" + querypubkey;
+                        var xhttp = new XMLHttpRequest();
+                	xhttp.onreadystatechange = function() {
+                	    if ( this.readyState == 4 && this.status == 200 ) {
+                                    var prepjson = xhttp.responseText;
+                                    prepjson = prepjson.substring( 0, prepjson.indexOf( "}" ) + 1 );
+                                    console.log( prepjson );
+                                    var json = JSON.parse( prepjson );
+                                    console.log( [1] );
+                                    var invoice = json[ "invoice" ];
+                                    var voucherid = json[ "voucher_id" ];
+                                    console.log( "invoice:", invoice );
+                                    console.log( "voucherid:", voucherid );
+                                    document.getElementById( "invoice qr" ).append( createQR( invoice ) );
+                                    document.getElementById( "invoice text" ).innerText = invoice;
+                                    document.getElementById( "invoice box" ).style.display = "block";
+                                    console.log( "pay this invoice:", invoice );
+                                    console.log( "voucherid right before it gets passed to loopchecker:", voucherid );
+                                    loopChecker( pmthash, preimage, amount, voucherid, queryprivkey, templatehash, lockinghash, drivercommskey, second_preimage );
  			    }
  			}
  			xhttp.open( "GET", url, true );
@@ -583,27 +592,36 @@
  	</script>
  	<script>
  		function decideMessageTypeAndNextSteps( message, driver ) {
-        message = JSON.parse( message );
-        var type = message[ "type" ];
-        var name = message[ "name" ];
-        var vehicle = message[ "vehicle" ];
-        var coordinates = message[ "coordinates" ];
-        var coordinatesobj = L.marker( coordinates );
-        var driver_dist = getDistance( from.getLatLng(), coordinatesobj.getLatLng() );
-        if ( type == "acceptance" ) {
-        	var driver_was_found = confirm( "Click ok if you want " + name + " to pick you up in their " + vehicle + ", they are currently " + driver_dist + " miles away" );
-        }
-			if ( !driver_was_found ) {
-				return;
-			}
-			//send a message to nostr marking the offer message fulfilled
-			var offer_was_marked_fulfilled = true;
-			var recipient = message[ "pubkey" ];
-			//create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
-			var second_preimage = bitcoinjs.ECPair.makeRandom().privateKey.toString( "hex" );
-			console.log( "here is the preimage the driver will eventually get assuming no dispute:", second_preimage );
-			var hash = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
-			makeVoucher( hash, driver, recipient, second_preimage );
+                        message = JSON.parse( message );
+                        var type = message[ "type" ];
+                        if ( type == "acceptance" ) {
+                                var name = message[ "name" ];
+                                var vehicle = message[ "vehicle" ];
+                                var coordinates = message[ "coordinates" ];
+                                var coordinatesobj = L.marker( coordinates );
+                                var driver_dist = getDistance( from.getLatLng(), coordinatesobj.getLatLng() );
+                        	var driver_was_found = confirm( "Click ok if you want " + name + " to pick you up in their " + vehicle + ", they are currently " + driver_dist + " miles away" );
+                                if ( !driver_was_found ) {
+                                        return;
+                                }
+                                //send a message to nostr marking the offer message fulfilled
+                                var offer_was_marked_fulfilled = true;
+                                var recipient = message[ "pubkey" ];
+                                //create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
+                                var second_preimage = bitcoinjs.ECPair.makeRandom().privateKey.toString( "hex" );
+                                console.log( "here is the preimage the driver will eventually get assuming no dispute:", second_preimage );
+                                var hash = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
+                                makeVoucher( hash, driver, recipient, second_preimage );
+                        }
+                        if ( type == "location" ) {
+                                console.log( driverlocation );
+                                var driverlocation = message[ "location" ];
+                                if ( driverimg != {} ) {
+                                        mymap.removeLayer( driverimg );
+                                }
+                                driverimg = new L.Marker( driverlocation, { icon: carIcon } );
+                                mymap.addLayer( driverimg );
+                        }
  		}
  	</script>
  	<script>
