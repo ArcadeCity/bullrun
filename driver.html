@@ -437,7 +437,7 @@
 						if ( json[ "status" ] == "success" ) {
 							document.getElementById( "error banner" ).style.display = "block";
 							document.getElementById( "error banner" ).style.backgroundColor = "green";
-							document.getElementById( "error banner" ).innerText = "Congratulations, you got your payment! Check your bitcoin wallet, it's in there. :)";
+							document.getElementById( "error banner" ).innerText = "Well, you are definitely the full owner of the voucher. Now we will try redeeming it.";
 						}
 					}
 					return i_am_the_owner;
@@ -598,7 +598,7 @@
 			        	console.log( "yay, you got the voucher!" );
 						document.getElementById( "error banner" ).style.display = "block";
 						document.getElementById( "error banner" ).style.backgroundColor = "green";
-						document.getElementById( "error banner" ).innerText = "Success, you redeemed the voucher";
+						document.getElementById( "error banner" ).innerText = "Congratulations, you got your payment! Check your bitcoin wallet, it's in there. :)";
 			        } else {
 						document.getElementById( "error banner" ).style.display = "block";
 						document.getElementById( "error banner" ).style.backgroundColor = "red";
