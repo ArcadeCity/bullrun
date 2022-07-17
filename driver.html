@@ -76,12 +76,23 @@
 			sessionStorage[ "location" ] = location;
 			document.getElementById( "getting-location" ).style.display = "none";
 			document.getElementById( "content" ).style.display = "block";
+			var riderlocation = JSON.parse( sessionStorage[ "rider-location" ] );
+			var riderobj = L.marker( riderlocation );
+			var driver = JSON.parse( location );
+            var driverobj = L.marker( driver );
+            var dist_to_rider = getDistance( driverobj.getLatLng(), riderobj.getLatLng() );
+            if ( dist_to_rider < 0.042 ) {
+				sessionStorage[ "i-picked-up-my-rider" ] = true;
+			}
 		}
 		var fakename = prompt( "Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)" );
 		var vehicle = prompt( "Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle" );
 		sessionStorage[ "privkey" ] = buffer.Buffer.from( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" );
 		sessionStorage[ "driver-name" ] = fakename;
 	    sessionStorage[ "vehicle-description" ] = vehicle;
+	    var riderlocation = {"lat":0,"lng":0}
+	    riderlocation = JSON.stringify( riderlocation );
+	    sessionStorage[ "rider-location" ] = riderlocation;
 		getLocation();
 	</script>
 	<script>
@@ -173,6 +184,7 @@
 	                        message[ "name" ] = sessionStorage[ "driver-name" ];
 	                        message[ "vehicle" ] = sessionStorage[ "vehicle-description" ];
 	                        message[ "coordinates" ] = JSON.parse( sessionStorage[ "location" ] );
+	                        sessionStorage[ "rider" ] = event[ 2 ].pubkey;
 							var driver_privkey = sessionStorage[ "privkey" ];
 			        		var pubkey = nobleSecp256k1.getPublicKey( driver_privkey, true );
 	                        message[ "pubkey" ] = pubkey;
@@ -280,45 +292,21 @@
 	<div id="getting-location">Getting your location...</div>
     <div id="content" style="display: none;">
 		<div id="error banner" style="background-color: red; color: white; font-weight: bold; padding: 5px; font-family: sans-serif; display: none;"></div>
-		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-			<h2>Prove your ownership of your voucher (pending the second preimage).</h2>
-			<p>Enter your voucher</p>
-			<p><input type="text" id="voucher" /></p>
-			<p><button id="prove ownership pending second preimage">Submit</button></p>
-		</div>
-		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-			<h2>Prove full ownership of your voucher</h2>
-			<p>Enter your voucher</p>
-			<p><input type="text" id="voucher" /></p>
-			<p>Enter the second preimage</p>
-			<p><input type="text" id="preimage" /></p>
-			<p><button id="prove ownership">Submit</button></p>
-		</div>
-		<p>----- OR -----</p>
-		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
+		<div id="endpoint-and-macaroon-box" style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
 			<h2>Get your rest api endpoint and your invoice macaroon from your umbrel, mynode, voltage, or other node.</h2>
 			<p>Rest api endpoint</p>
 			<p><input type="text" id="endpoint" /></p>
 			<p>Invoice macaroon</p>
 			<p><input type="text" id="macaroon" /></p>
-			<p><button id="make invoice">Submit</button></p>
+			<p><button id="set-endpoint-and-macaroon">Submit</button></p>
 		</div>
-		<p>----- OR -----</p>
-		<div style="border: 1px solid black; border-radius: 10px; padding: 10px; max-width: 350px;">
-			<h2>Create an invoice by running this command in your node:</h2>
-			<div id="terminal instructions" style="word-break: break-all; border: 1px solid black; background-color: #cccccc; padding: 5px;">
-			</div>
-			<h2>Then copy-paste the resulting payment request here to redeem your voucher:</h2>
-			<p>Invoice</p>
-			<p><input type="text" id="invoice" /></p>
-			<p><button id="skip_the_loop">Submit</button></p>
+		<div id="instructions" style="width: 100%; display: none;">
 		</div>
 	</div>
 	<script>
 		//document.getElementById( "terminal instructions" ).innerText = "lncli addinvoice --amt " + amount + " --preimage " + preimage;
 	</script>
 	<script>
-		document.getElementById( "prove ownership pending second preimage" ).addEventListener( "click", function() {provePendingOwnership();});
 		async function provePendingOwnership( voucherhex = "" ) {
 			if ( !voucherhex || voucherhex == "" ) {
 				var voucher = JSON.parse( buffer.Buffer.from( document.getElementById( "voucher" ).value, "hex" ).toString() );
@@ -372,7 +360,6 @@
 		}
 	</script>
 	<script>
-		document.getElementById( "prove ownership" ).addEventListener( "click", async function() {proveFullOwnership();});
 		async function proveFullOwnership( voucherhex = "", second_preimage = "" ) {
 			if ( !voucherhex || voucherhex == "" ) {
 				var voucher = JSON.parse( buffer.Buffer.from( document.getElementById( "voucher" ).value, "hex" ).toString() );
@@ -450,7 +437,7 @@
 						if ( json[ "status" ] == "success" ) {
 							document.getElementById( "error banner" ).style.display = "block";
 							document.getElementById( "error banner" ).style.backgroundColor = "green";
-							document.getElementById( "error banner" ).innerText = "You redeemed the voucher";
+							document.getElementById( "error banner" ).innerText = "Congratulations, you got your payment! Check your bitcoin wallet, it's in there. :)";
 						}
 					}
 					return i_am_the_owner;
@@ -459,10 +446,6 @@
 		}
 	</script>
 	<script>
-		document.getElementById( "skip_the_loop" ).addEventListener( "click", function() {
-			var invoice = document.getElementById( "invoice" ).value;
-			askLightningEscrowToPayInvoice( invoice );
-		});
 		function isHex( string ) {
 			var a = parseInt( string, 16 );
 			return ( a.toString( 16 ) === string );
@@ -647,9 +630,10 @@
 			xhttp.open( "GET", url, true );
 			xhttp.send();
 		}
-		document.getElementById( "make invoice" ).addEventListener( "click", function() {
-			//makeInvoice();
-			alert( "your endpoint and macaroon are saved, continue" );
+		document.getElementById( "set-endpoint-and-macaroon" ).addEventListener( "click", function() {
+			document.getElementById( "endpoint-and-macaroon-box" ).style.display = "none";
+			document.getElementById( "instructions" ).innerText = "You're all set, now wait for someone to request a ride";
+			document.getElementById( "instructions" ).style.display = "block";
 		});
 		async function makeInvoice( endpoint = "", macaroon = "", settlable_amount = "", settlable_preimage = "", settlable_pmthash = "" ) {
 			var info = "";
@@ -735,10 +719,15 @@
 	            console.log( voucher );
 	            var contract = JSON.parse( sessionStorage[ "current-contract" ] );
 	            var from = contract[ "from" ];
+	            var to = contract[ "to" ];
 	            console.log( from );
+	            sessionStorage[ "rider-location" ] = JSON.stringify( from );
+	            sessionStorage[ "rider-destination" ] = JSON.stringify( to );
+	            sessionStorage[ "i-picked-up-my-rider" ] = false;
 	            var url = "https://maps.google.com/?q=" + from[ "lat" ] + "," + from[ "lng" ];
-	            console.log( "click here to open google maps and pick up your rider:", url );
-	            var to = voucher[ "to" ];
+				document.getElementById( "instructions" ).innerText = 'click here to open google maps and pick up your rider: <a href="' + url + '" target="_blank">' + url + '</a>';
+				document.getElementById( "instructions" ).style.display = "block";
+	            sendLocation();
             }
             if ( type == "finalize" ) {
             	var preimage = message[ "preimage" ];
@@ -748,6 +737,38 @@
             		console.log( "yay, now it is time to redeem the voucher!" );
             	}
 			}
+ 		}
+ 	</script>
+ 	<script>
+ 		function getRandomSmallNumber() {
+		  var num = Number( Math.floor( Math.random() * 2 ) ) - Number( Math.floor( Math.random() * 10 ) / 100 );
+		  if ( num > 0 ) {num = 1 - num;}
+		  num = Number( num.toFixed( 2 ) );
+		  if ( num == 0 ) {
+		    return getRandomSmallNumber();
+		  } else {
+		    return num;
+		  }
+		}
+ 		function sendLocation() {
+ 			if ( sessionStorage[ "i-picked-up-my-rider" ] == true || sessionStorage[ "i-picked-up-my-rider" ] == "true" ) {
+ 				var destination = JSON.parse( sessionStorage[ "rider-destination" ] );
+	            var url = "https://maps.google.com/?q=" + destination[ "lat" ] + "," + destination[ "lng" ];
+				document.getElementById( "instructions" ).innerText = 'click here to open google maps and take your rider to their destination: <a href="' + url + '" target="_blank">' + url + '</a>';
+				document.getElementById( "instructions" ).style.display = "block";
+ 				return;
+ 			}
+ 			var rider = sessionStorage[ "rider" ];
+            var message = {}
+            message[ "type" ] = "location";
+            var location = JSON.parse( sessionStorage[ "location" ] );
+            //location[ "lat" ] = Number( location[ "lat" ] ) + Number( getRandomSmallNumber() );
+            //location[ "lng" ] = Number( location[ "lng" ] ) + Number( getRandomSmallNumber() );;
+            message[ "location" ] = location;
+            message = JSON.stringify( message );
+            console.log( message );
+            makePrivateNote( message, rider );
+            setTimeout( function() {sendLocation();}, 10000 );
  		}
  	</script>
 </body>
