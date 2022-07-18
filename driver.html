@@ -3,8 +3,8 @@
 	<head>
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
-		<title>Request a Ride | Bullrun</title>
-		<link rel="icon" href="/icons/favicon.png" />
+		<title>Offer a Ride | Bullrun</title>
+		<link rel="icon" href="images/icons/favicon.svg" type="image/svg+xml" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link rel="stylesheet" href="css/styles.css" />
@@ -178,6 +178,7 @@
 			// Listen for messages
 			socket.addEventListener('message', function (event) {
 				var event = JSON.parse(event.data)
+				console.log('event:', event)
 				if (event[2] && event[2].kind == 4) {
 					var i
 					for (i = 0; i < event[2].tags.length; i++) {
@@ -435,7 +436,7 @@
 				<p>Getting your location...</p>
 			</div>
 		</header>
-		<main>
+		<main id="site_content">
 			<div id="content" style="display: none">
 				<div
 					id="error banner"
@@ -448,28 +449,36 @@
 						display: none;
 					"
 				></div>
-				<div
-					id="endpoint-and-macaroon-box"
-					style="
-						border: 1px solid black;
-						border-radius: 10px;
-						padding: 10px;
-						max-width: 350px;
-					"
-				>
-					<h2>
-						Get your rest api endpoint and your invoice macaroon
-						from your umbrel, mynode, voltage, or other node.
-					</h2>
-					<p>Rest api endpoint</p>
-					<p><input type="text" id="endpoint" /></p>
-					<p>Invoice macaroon</p>
-					<p><input type="text" id="macaroon" /></p>
+				<div id="endpoint-and-macaroon-box">
+					<h2>Node Connection</h2>
 					<p>
-						<button id="set-endpoint-and-macaroon">Submit</button>
+						Get your rest api endpoint and your invoice macaroon
+						from your Umbrel, MyNode, Voltage, or other node.
 					</p>
+					<form id="node_connection_form">
+						<div class="form-field-wrapper">
+							<label for="endpoint">Rest API Endpoint</label>
+							<input
+								type="text"
+								id="endpoint"
+								name="endpoint"
+								placeholder="https://tor.onion:8080"
+							/>
+						</div>
+						<div class="form-field-wrapper">
+							<label for="macaroon">Invoice Macaroon</label>
+							<input type="text" id="macaroon" name="macaroon" />
+						</div>
+						<button type="button" id="set-endpoint-and-macaroon">
+							Submit
+						</button>
+					</form>
 				</div>
-				<div id="instructions" style="width: 100%; display: none"></div>
+				<div
+					id="instructions"
+					class="highlight-box success"
+					style="display: none"
+				></div>
 			</div>
 		</main>
 		<footer id="site_footer">
@@ -973,7 +982,8 @@
 			}
 			document
 				.getElementById('set-endpoint-and-macaroon')
-				.addEventListener('click', function () {
+				.addEventListener('click', function (e) {
+					e.preventDefault()
 					document.getElementById(
 						'endpoint-and-macaroon-box'
 					).style.display = 'none'

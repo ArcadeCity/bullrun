@@ -2,12 +2,21 @@
 #   VARIABLES
 ----------------------------*/
 :root {
-	--primary: rgb(255, 150, 0);
-	--secondary: rgb(0, 50, 210);
+	--primary: rgb(255, 127, 0);
+	--primaryTint: rgba(255, 127, 0, 0.2);
+	--secondary: rgb(0, 127, 255);
+	--secondaryTint: rgba(0, 127, 255, 0.2);
 	--light: rgb(241, 244, 243);
 	--grey: rgb(172, 177, 184);
 	--dark: rgb(32, 32, 34);
 	--borderColor: rgb(204, 204, 204);
+
+	--success: rgb(66, 179, 0);
+	--successTint: rgba(66, 179, 0, 0.2);
+	--error: rgb(225, 25, 0);
+	--errorTint: rgba(225, 25, 0, 0.2);
+	--warning: rgb(255, 170, 0);
+	--warninTint: rgba(255, 170, 0, 0.2);
 
 	--font-headline: 'Inter', sans-serif;
 	--font-body: 'Inter', sans-serif;
@@ -35,6 +44,10 @@ html {
 	-ms-text-size-adjust: 100%;
 }
 body {
+	min-height: 100vh;
+	display: grid;
+	grid-template-columns: 1fr;
+	grid-template-rows: auto 1fr auto;
 	margin: 0;
 	padding: 0;
 }
@@ -96,10 +109,68 @@ a {
 }
 
 /*----------------------------
+#   FORMS
+----------------------------*/
+button {
+	color: #fff;
+	padding: 1em 2em;
+	background-color: var(--primary);
+	border: none;
+	border-radius: var(--radius-s);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	transition: all 0.5s ease;
+	white-space: nowrap;
+	cursor: pointer;
+}
+button:hover {
+	color: #fff;
+	background-color: var(--dark);
+}
+input[type='text'],
+input[type='url'] {
+	-webkit-appearance: none;
+	color: var(--dark);
+	padding: 1em 2em;
+	line-height: 1;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--borderColor);
+}
+
+/*----------------------------
 #   LAYOUT
 ----------------------------*/
 section {
 	padding: var(--layout-padding);
+}
+
+/*----------------------------
+#   GLOBAL
+----------------------------*/
+
+.highlight-box {
+	margin: 1em auto;
+	padding: 1em 2em;
+	background-color: var(--light);
+	border-left: 4px solid var(--grey);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+}
+.highlight-box.primary {
+	border-color: var(--primary);
+	background-color: var(--primaryTint);
+}
+.highlight-box.secondary {
+	border-color: var(--secondary);
+	background-color: var(--secondaryTint);
+}
+.highlight-box.success {
+	border-color: var(--success);
+	background-color: var(--successTint);
+}
+.highlight-box.error {
+	border-color: var(--error);
+	background-color: var(--errorTint);
 }
 
 /*----------------------------
@@ -122,27 +193,78 @@ h1.site-title {
 }
 
 /*----------------------------
+#   MAIN / SITE CONTENT
+----------------------------*/
+
+#site_content {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: var(--gap);
+	padding: 0 var(--layout-padding);
+}
+
+/*----------------------------
 #   RIDER
 ----------------------------*/
 #rider_map {
-	padding: 0 var(--layout-padding);
+	grid-column: 1 / -1;
+	margin: 0;
+	padding: 0;
 }
 .map-wrapper {
-	width: 90vw;
-	height: 70vh;
+	width: 100%;
+	height: 100%;
+	max-height: 90vh;
 	border: 1px solid var(--borderColor);
 	border-radius: var(--radius-s);
 	overflow: hidden;
 }
-#mymap {
+#mapid {
 	width: 100%;
 	height: 100%;
+}
+
+#rider_payment {
+	grid-column: 1 / -1;
+	border: 1px solid var(--borderColor);
+	border-radius: var(--radius-s);
+}
+
+/*----------------------------
+#   DRIVER
+----------------------------*/
+form {
+	gap: var(--gap);
+}
+form#node_connection_form {
+	display: grid;
+	padding: 2em;
+	background-color: var(--light);
+	border-radius: var(--radius-s);
+}
+.form-field-wrapper {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-flow: column nowrap;
+}
+.form-field-wrapper label {
+	margin-bottom: 0.5em;
+}
+form#node_connection_form button {
+	grid-column: 1 / -1;
+	width: 100%;
+}
+
+#instructions {
+	grid-column: 1 / -1;
 }
 
 /*----------------------------
 #   FOOTER
 ----------------------------*/
 footer#site_footer {
+	grid-column: 1 / -1;
+	margin-top: auto;
 	padding: 1.5em var(--layout-padding);
 }
 footer p {
@@ -169,6 +291,9 @@ footer a {
 		--layout-padding: 2em;
 		--gap: 1.5em;
 	}
+	#site_content {
+		grid-template-columns: 60vw auto;
+	}
 }
 
 /* 	960px Breakpoint	*/
@@ -176,6 +301,13 @@ footer a {
 	:root {
 		--layout-padding: 2.5em;
 		--gap: 1.75em;
+	}
+	#rider_map {
+		grid-column: 1 / 2;
+	}
+	#rider_payment {
+		grid-column: 2 / 3;
+		align-items: center;
 	}
 }
 
