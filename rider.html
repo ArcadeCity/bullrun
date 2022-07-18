@@ -1,432 +1,614 @@
 <!DOCTYPE html>
 <html>
-<head>
-</head>
-<body>
-	<script src="https://bitcoincore.tech/apps/bitcoinjs-ui/lib/bitcoinjs-lib.js"></script>
-	<script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
-	<script src="https://bundle.run/buffer@6.0.3"></script>
-	<script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
-	<script src="https://bundle.run/bip39@3.0.4"></script>
-	<script src="https://bundle.run/bip32@2.0.6"></script>
-	<script src="https://bundle.run/browserify-cipher@1.0.1"></script>
-	<script>
-	        function computeRawPrivkey( node ) {
-	                return bitcoinjs.ECPair.fromPrivateKey( node.privateKey, { network: bitcoinjs.networks.mainnet } );
-	        }
-	</script>
-	<script>
-	        function getPrivkeyHex( backupwords, path, index ) {
-	                var seed = bip39.mnemonicToSeedSync( backupwords );
-	                var node = bip32.fromSeed( seed );
-	                var path = "m/" + path + "/" + index;
-	                var root = node;
-	                var child = root.derivePath( path );
-	                return computeRawPrivkey( child );
-	        }
-	</script>
-	<script>
-	        function toHexString(byteArray) {
-	                return Array.from(byteArray, function(byte) {
-	                        return ('0' + (byte & 0xFF).toString(16)).slice(-2);
-	                }).join('');
-	        }
-	</script>
-	<script>
-	        var backupwords = bip39.generateMnemonic();
-	        var path = 0;
-	        var index = 1;
-	        var privKey = getPrivkeyHex( backupwords, path, index );
-	        privKey = privKey.__D.toString( 'hex' );
-	        var pubKey = nobleSecp256k1.getPublicKey( privKey, true );
-	        var pubKeyMinus2 = pubKey.substring( 2 );
-	</script>
-	<script>
-	        function normalizeRelayURL(e){let[t,...r]=e.trim().split("?");return"http"===t.slice(0,4)&&(t="ws"+t.slice(4)),"ws"!==t.slice(0,2)&&(t="wss://"+t),t.length&&"/"===t[t.length-1]&&(t=t.slice(0,-1)),[t,...r].join("?")}
-	        var relay = "wss://relay.damus.io";
-	        relay = normalizeRelayURL( relay );
-	        var socket = new WebSocket( relay );
-	        var filter = {
-	                "#p": [
-	                        pubKeyMinus2
-	                ]
-	        };
-	        var subscription = [ "REQ", "get-self-references", filter ];
-	        subscription = JSON.stringify( subscription );
-	        sessionStorage[ "selfsubscription" ] = subscription;
-	        setTimeout( function() {socket.send( sessionStorage[ "selfsubscription" ] );}, 1000 );
-
-	        var filter = {
-	                "kinds": [
-	                        60
-	                ]
-	        };
-	        var subscription2 = [ "REQ", "get-kind-sixty", filter ];
-	        subscription2 = JSON.stringify( subscription2 );
-	        sessionStorage[ "kindsixtysub" ] = subscription2;
-	        setTimeout( function() {socket.send( sessionStorage[ "kindsixtysub" ] );}, 1000 );
-
-	        function subscribe( pubkey ) {
-	          var filter = {
-	                  "authors": [
-	                          pubkey
-	                  ]
-	          };
-	          var subscription = [ "REQ", "my-sub", filter ];
-	          subscription = JSON.stringify( subscription );
-	          sessionStorage.subscription = subscription;
-	          socket.send( sessionStorage.subscription );
-	        }
-
-	        socket.addEventListener( 'open', function( event ) {
-	                console.log( "connected to nostr relay " + relay );
-	        });
-
-	        // Listen for messages
-	        socket.addEventListener( 'message', function( event ) {
-	                var event = JSON.parse( event.data );
-	                if ( event[ 2 ] && event[ 2 ].kind == 4 ) {
-	                        var i; for ( i=0; i<event[ 2 ].tags.length; i++ ) {
-	                                        if ( event[ 2 ].tags[ i ] && event[ 2 ].tags[ i ][ 1 ] ) {
-	                                                        var recipient = event[ 2 ].tags[ i ][ 1 ];
-	                                                        if ( recipient == pubKeyMinus2 ) {
-	                                                                        var decrypted_message = decrypt( privKey, event[ 2 ].pubkey, event[ 2 ].content );
-	                                                                        console.log( decrypted_message + " (sent privately by " + event[ 2 ].pubkey + ")" );
-	                                                                        decideMessageTypeAndNextSteps( decrypted_message, event[ 2 ].pubkey );
-	                                                        } else if ( event[ 2 ].pubkey == pubKeyMinus2 ) {
-	                                                                        console.log( decrypt( privKey, recipient, event[ 2 ].content ) + " (sent privately by " + event[ 2 ].pubkey + ")" );
-	                                                        }
-	                                        }
-	                        }
-	                } else if ( event[ 2 ] && event[ 2 ].kind == 1 ) {
-	                        console.log( event[ 2 ].content + " (sent publicly by " + event[ 2 ].pubkey + ")" );
-	                } else if ( event[ 2 ] && event[ 2 ].kind == 60 ) {
-	                        console.log( event[ 2 ].content, event[ 2 ].id, event[ 2 ].pubkey );
-	                }
-	        });
-	</script>
-	<script>
-        function putOfferOnNostr( offer ) {
-                offer = JSON.stringify( offer );
-                console.log( "note: '" + offer + "'" );
-                var now = Math.floor( ( new Date().getTime() ) / 1000 );
-                console.log( now );
-                var newevent = [
-                        0,
-                        pubKeyMinus2,
-                        now,
-                        60,
-                        [],
-                        offer
-                ];
-                var message = JSON.stringify( newevent );
-                console.log( "message: '" + message + "'" );
-                var msghash = bitcoinjs.crypto.sha256( message ).toString( 'hex' );
-	            console.log( "your ride id (save this, you'll need it in case of a dispute):", msghash );
-                console.log( "msghash: '" + msghash + "'" );
-                nobleSecp256k1.schnorr.sign( msghash, privKey ).then( 
-                        value => { 
-                                sig = value;
-                                console.log( "the sig is:", sig );
-                                nobleSecp256k1.schnorr.verify( 
-                                        sig,
-                                        msghash,
-                                        pubKeyMinus2
-                                ).then(
-                                        value => { 
-                                                console.log( "this should say true if the signature is valid for the above pubkey over the message", value );
-                                                if ( value ) {
-                                                        var fullevent = {
-                                                                "id": msghash,
-                                                                "pubkey": pubKeyMinus2,
-                                                                "created_at": now,
-                                                                "kind": 60,
-                                                                "tags": [],
-                                                                "content": offer,
-                                                                "sig": sig
-                                                        }
-                                                        var sendable = [ "EVENT", fullevent ];
-                                                        sessionStorage.sendable = JSON.stringify( sendable );
-                                                        console.log( "here is what you will send:", sendable );
-                                                        socket.send( JSON.stringify( sendable ) );
-                                                }
-                                        }
-                               );
-                        }
-                );
-        }
-        function makeNote( note ) {
-                console.log( "note: '" + note + "'" );
-                var now = Math.floor( ( new Date().getTime() ) / 1000 );
-                console.log( now );
-                var newevent = [
-                        0,
-                        pubKeyMinus2,
-                        now,
-                        1,
-                        [],
-                        note
-                ];
-                var message = JSON.stringify( newevent );
-                console.log( "message: '" + message + "'" );
-                var msghash = bitcoinjs.crypto.sha256( message ).toString( 'hex' );
-                console.log( "msghash: '" + msghash + "'" );
-                nobleSecp256k1.schnorr.sign( msghash, privKey ).then( 
-                        value => { 
-                                sig = value;
-                                console.log( "the sig is:", sig );
-                                nobleSecp256k1.schnorr.verify( 
-                                        sig,
-                                        msghash,
-                                        pubKeyMinus2
-                                ).then(
-                                        value => { 
-                                                console.log( "this should say true if the signature is valid for the above pubkey over the message", value );
-                                                if ( value ) {
-                                                        var fullevent = {
-                                                                "id": msghash,
-                                                                "pubkey": pubKeyMinus2,
-                                                                "created_at": now,
-                                                                "kind": 1,
-                                                                "tags": [],
-                                                                "content": note,
-                                                                "sig": sig
-                                                        }
-                                                        var sendable = [ "EVENT", fullevent ];
-                                                        sessionStorage.sendable = JSON.stringify( sendable );
-                                                        socket.send( '["EVENT",' + JSON.stringify( JSON.parse( sessionStorage.sendable )[ 1 ] ) + ']' );
-                                                 }
-                                        }
-                               );
-                        }
-                );
-        }
-        function makePrivateNote( note, recipientpubkey ) {
-                console.log( "note: '" + note + "'" );
-                var now = Math.floor( ( new Date().getTime() ) / 1000 );
-                console.log( now );
-                var privatenote = encrypt( privKey, recipientpubkey, note );
-                var newevent = [
-                        0,
-                        pubKeyMinus2,
-                        now,
-                        4,
-                        [['p', recipientpubkey]],
-                        privatenote
-                ];
-                var message = JSON.stringify( newevent );
-                console.log( "message: '" + message + "'" );
-                var msghash = bitcoinjs.crypto.sha256( message ).toString( 'hex' );
-                console.log( "msghash: '" + msghash + "'" );
-                nobleSecp256k1.schnorr.sign( msghash, privKey ).then(
-                        value => {
-                                sig = value;
-                                console.log( "the sig is:", sig );
-                                nobleSecp256k1.schnorr.verify(
-                                        sig,
-                                        msghash,
-                                        pubKeyMinus2
-                                ).then(
-                                        value => {
-                                                console.log( "this should say true if the signature is valid for the above pubkey over the message", value );
-                                                if ( value ) {
-                                                        var fullevent = {
-                                                                "id": msghash,
-                                                                "pubkey": pubKeyMinus2,
-                                                                "created_at": now,
-                                                                "kind": 4,
-                                                                "tags": [['p', recipientpubkey]],
-                                                                "content": privatenote,
-                                                                "sig": sig
-                                                        }
-                                                        var sendable = [ "EVENT", fullevent ];
-                                                        sessionStorage.sendable = JSON.stringify( sendable );
-                                                        console.log( "this is what I am sending:", JSON.stringify( sendable ) );
-                                                        socket.send( JSON.stringify( sendable ) );
-                                                        console.log( "ok the private message with this id was sent", msghash );
-                                                 }
-                                        }
-                               );
-                        }
-                );
-        }
-        function encrypt( privkey, pubkey, text ) {
-          console.log( "recipient pubkey (because I keep getting an error that it is not real):", pubkey );
-          var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
-
-          var iv = window.crypto.getRandomValues( new Uint8Array(16) );
-          var cipher = browserifyCipher.createCipheriv(
-            'aes-256-cbc',
-            buffer.Buffer.from( key, 'hex' ),
-            iv
-          );
-          var encryptedMessage = cipher.update( text, "utf8", "base64" );
-          emsg = encryptedMessage + cipher.final( "base64" );
-
-          return emsg + "?iv=" + buffer.Buffer.from( iv.buffer ).toString( "base64");
-        }
-
-        function decrypt( privkey, pubkey, ciphertext ) {
-          var [ emsg, iv ] = ciphertext.split( "?iv=" );
-          var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
-
-          var decipher = browserifyCipher.createDecipheriv(
-            'aes-256-cbc',
-            buffer.Buffer.from( key, "hex" ),
-            buffer.Buffer.from( iv, "base64" )
-          );
-          var decryptedMessage = decipher.update( emsg, "base64" );
-          dmsg = decryptedMessage + decipher.final( "utf8" );
-
-          return dmsg;
-        }
-	</script>
-	<script type="text/javascript">var link = document.createElement("link");link.rel="stylesheet";link.href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css";link.integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==";link.setAttribute("crossorigin", "");document.getElementsByTagName("head")[0].appendChild(link);</script>
-
-	<script type="text/javascript">var style = document.createElement("style");var css = document.createTextNode("#mapid {height: 486px;}");style.appendChild(css);document.getElementsByTagName("head")[0].appendChild(style);</script>
-
-	<script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og==" crossorigin=""></script>
-
-	<div id="getting-location">Getting your location...</div>
-	<div id="mapid"></div>
-	<div id="invoice box" style="width: 100%; max-width: 350px; display: none;" align="center">
-		<h2 id="invoice title">Pay this invoice</h2>
-		<div id="invoice qr" style="width: 100%; max-width: 300px; height: 100%; max-height: 300px; border: 1px solid black; border-radius: 10px; padding: 10px;">
-		</div>
-		<div id="invoice text" style="display: inline-block; border: 1px solid black; text-overflow: break; word-break: break-all;"></div>
-	</div>
-	<div id="preimage box" style="width: 100%; max-width: 350px; display: none;" align="center">
-		<h2 id="preimage title">Your preimage</h2>
-		<p id="preimage instructions">Only show this to your driver when your ride is done. He needs it to collect his payment. If you get within 100 feet of your destination your device will automatically send it to him.</p>
-		<div id="preimage qr" style="width: 100%; max-width: 300px; height: 100%; max-height: 300px; border: 1px solid black; border-radius: 10px; padding: 10px;">
-		</div>
-		<div id="preimage text" style="display: inline-block; border: 1px solid black; text-overflow: break; word-break: break-all;"></div>
-	</div>
-	<script>
-		var options;
-		options = {
-		  enableHighAccuracy: true,
-		  timeout: 15000,
-		  maximumAge: 5000
-		};
-		function error( err ) {
-		  console.warn( 'ERROR( ' + err.code + ' ): ' + err.message );
-		}
-		function getLocation() {
-		  if ( navigator.geolocation ) {
-		      id = navigator.geolocation.watchPosition( watchUsersPosition, error, options );
-		  } else {
-		      console.error( "Geolocation is not supported by this browser." );
-		  }
-		}
-	  	var lat = 38;
-	  	var lng = -95;
-	  	var zm = 4.3;
-		var mymap = L.map( 'mapid' ).setView( [lat, lng], zm );
-		var redIcon = new L.Icon({
-			iconUrl: 'https://streetevangelization.com/wp-content/uploads/2019/09/marker-icon-red.png',
-			shadowUrl: 'https://streetevangelization.com/wp-content/uploads/2019/09/marker-shadow.png',
-			iconSize: [25, 41],
-			iconAnchor: [12, 41],
-			popupAnchor: [1, -34],
-			shadowSize: [41, 41]
-		});
-                var carIcon = new L.Icon({
-                        iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Blue_old_car.svg/320px-Blue_old_car.svg.png',
-                        shadowUrl: '',
-                        iconSize: [50, 20],
-                        iconAnchor: [6, 20],
-                        popupAnchor: [1, -34],
-                        shadowSize: [41, 41]
-                });
-		var from = {};
-		var to = {};
-                var driverimg = {};
-		var olddist = "";
-		var finalized = false;
-		var offeramt = "";
-		function getDistance( from, to ) {
-		    return ( from.distanceTo( to ).toFixed( 0 ) / 1609.344 ).toFixed( 3 );
-		}
-		function watchUsersPosition( position ) {
-			if ( from != {} ) {
-				mymap.removeLayer( from );
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>Request a Ride | Bullrun</title>
+		<link rel="icon" href="/icons/favicon.png" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link rel="stylesheet" href="css/styles.css" />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap"
+		/>
+	</head>
+	<body>
+		<script src="https://bitcoincore.tech/apps/bitcoinjs-ui/lib/bitcoinjs-lib.js"></script>
+		<script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
+		<script src="https://bundle.run/buffer@6.0.3"></script>
+		<script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
+		<script src="https://bundle.run/bip39@3.0.4"></script>
+		<script src="https://bundle.run/bip32@2.0.6"></script>
+		<script src="https://bundle.run/browserify-cipher@1.0.1"></script>
+		<script>
+			function computeRawPrivkey(node) {
+				return bitcoinjs.ECPair.fromPrivateKey(node.privateKey, {
+					network: bitcoinjs.networks.mainnet,
+				})
 			}
-			if ( Object.keys( to ).length == 0 ) {
-		    	L.tileLayer( 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo( mymap );
-                        }
-			from = L.marker( [ position.coords.latitude, position.coords.longitude ], {icon: redIcon} ).addTo( mymap );
-			console.log( "to length:", Object.keys( to ).length );
-			if ( Object.keys( to ).length > 0 ) {
-				newdist = getDistance( from.getLatLng(), to.getLatLng() );
-		        if ( newdist != olddist ) {
-					console.log( newdist + ' mi' );
-					olddist = newdist;
-					if ( newdist < 0.021 ) {
-						navigator.geolocation.clearWatch( id );
-						alert( "you made it, you're there!" );
-						finalizeAll();
+		</script>
+		<script>
+			function getPrivkeyHex(backupwords, path, index) {
+				var seed = bip39.mnemonicToSeedSync(backupwords)
+				var node = bip32.fromSeed(seed)
+				var path = 'm/' + path + '/' + index
+				var root = node
+				var child = root.derivePath(path)
+				return computeRawPrivkey(child)
+			}
+		</script>
+		<script>
+			function toHexString(byteArray) {
+				return Array.from(byteArray, function (byte) {
+					return ('0' + (byte & 0xff).toString(16)).slice(-2)
+				}).join('')
+			}
+		</script>
+		<script>
+			var backupwords = bip39.generateMnemonic()
+			var path = 0
+			var index = 1
+			var privKey = getPrivkeyHex(backupwords, path, index)
+			privKey = privKey.__D.toString('hex')
+			var pubKey = nobleSecp256k1.getPublicKey(privKey, true)
+			var pubKeyMinus2 = pubKey.substring(2)
+		</script>
+		<script>
+			function normalizeRelayURL(e) {
+				let [t, ...r] = e.trim().split('?')
+				return (
+					'http' === t.slice(0, 4) && (t = 'ws' + t.slice(4)),
+					'ws' !== t.slice(0, 2) && (t = 'wss://' + t),
+					t.length && '/' === t[t.length - 1] && (t = t.slice(0, -1)),
+					[t, ...r].join('?')
+				)
+			}
+			var relay = 'wss://relay.damus.io'
+			relay = normalizeRelayURL(relay)
+			var socket = new WebSocket(relay)
+			var filter = {
+				'#p': [pubKeyMinus2],
+			}
+			var subscription = ['REQ', 'get-self-references', filter]
+			subscription = JSON.stringify(subscription)
+			sessionStorage['selfsubscription'] = subscription
+			setTimeout(function () {
+				socket.send(sessionStorage['selfsubscription'])
+			}, 1000)
+
+			var filter = {
+				kinds: [60],
+			}
+			var subscription2 = ['REQ', 'get-kind-sixty', filter]
+			subscription2 = JSON.stringify(subscription2)
+			sessionStorage['kindsixtysub'] = subscription2
+			setTimeout(function () {
+				socket.send(sessionStorage['kindsixtysub'])
+			}, 1000)
+
+			function subscribe(pubkey) {
+				var filter = {
+					authors: [pubkey],
+				}
+				var subscription = ['REQ', 'my-sub', filter]
+				subscription = JSON.stringify(subscription)
+				sessionStorage.subscription = subscription
+				socket.send(sessionStorage.subscription)
+			}
+
+			socket.addEventListener('open', function (event) {
+				console.log('connected to nostr relay ' + relay)
+			})
+
+			// Listen for messages
+			socket.addEventListener('message', function (event) {
+				var event = JSON.parse(event.data)
+				if (event[2] && event[2].kind == 4) {
+					var i
+					for (i = 0; i < event[2].tags.length; i++) {
+						if (event[2].tags[i] && event[2].tags[i][1]) {
+							var recipient = event[2].tags[i][1]
+							if (recipient == pubKeyMinus2) {
+								var decrypted_message = decrypt(
+									privKey,
+									event[2].pubkey,
+									event[2].content
+								)
+								console.log(
+									decrypted_message +
+										' (sent privately by ' +
+										event[2].pubkey +
+										')'
+								)
+								decideMessageTypeAndNextSteps(
+									decrypted_message,
+									event[2].pubkey
+								)
+							} else if (event[2].pubkey == pubKeyMinus2) {
+								console.log(
+									decrypt(
+										privKey,
+										recipient,
+										event[2].content
+									) +
+										' (sent privately by ' +
+										event[2].pubkey +
+										')'
+								)
+							}
+						}
 					}
+				} else if (event[2] && event[2].kind == 1) {
+					console.log(
+						event[2].content +
+							' (sent publicly by ' +
+							event[2].pubkey +
+							')'
+					)
+				} else if (event[2] && event[2].kind == 60) {
+					console.log(event[2].content, event[2].id, event[2].pubkey)
+				}
+			})
+		</script>
+		<script>
+			function putOfferOnNostr(offer) {
+				offer = JSON.stringify(offer)
+				console.log("note: '" + offer + "'")
+				var now = Math.floor(new Date().getTime() / 1000)
+				console.log(now)
+				var newevent = [0, pubKeyMinus2, now, 60, [], offer]
+				var message = JSON.stringify(newevent)
+				console.log("message: '" + message + "'")
+				var msghash = bitcoinjs.crypto.sha256(message).toString('hex')
+				console.log(
+					"your ride id (save this, you'll need it in case of a dispute):",
+					msghash
+				)
+				console.log("msghash: '" + msghash + "'")
+				nobleSecp256k1.schnorr.sign(msghash, privKey).then((value) => {
+					sig = value
+					console.log('the sig is:', sig)
+					nobleSecp256k1.schnorr
+						.verify(sig, msghash, pubKeyMinus2)
+						.then((value) => {
+							console.log(
+								'this should say true if the signature is valid for the above pubkey over the message',
+								value
+							)
+							if (value) {
+								var fullevent = {
+									id: msghash,
+									pubkey: pubKeyMinus2,
+									created_at: now,
+									kind: 60,
+									tags: [],
+									content: offer,
+									sig: sig,
+								}
+								var sendable = ['EVENT', fullevent]
+								sessionStorage.sendable =
+									JSON.stringify(sendable)
+								console.log(
+									'here is what you will send:',
+									sendable
+								)
+								socket.send(JSON.stringify(sendable))
+							}
+						})
+				})
+			}
+			function makeNote(note) {
+				console.log("note: '" + note + "'")
+				var now = Math.floor(new Date().getTime() / 1000)
+				console.log(now)
+				var newevent = [0, pubKeyMinus2, now, 1, [], note]
+				var message = JSON.stringify(newevent)
+				console.log("message: '" + message + "'")
+				var msghash = bitcoinjs.crypto.sha256(message).toString('hex')
+				console.log("msghash: '" + msghash + "'")
+				nobleSecp256k1.schnorr.sign(msghash, privKey).then((value) => {
+					sig = value
+					console.log('the sig is:', sig)
+					nobleSecp256k1.schnorr
+						.verify(sig, msghash, pubKeyMinus2)
+						.then((value) => {
+							console.log(
+								'this should say true if the signature is valid for the above pubkey over the message',
+								value
+							)
+							if (value) {
+								var fullevent = {
+									id: msghash,
+									pubkey: pubKeyMinus2,
+									created_at: now,
+									kind: 1,
+									tags: [],
+									content: note,
+									sig: sig,
+								}
+								var sendable = ['EVENT', fullevent]
+								sessionStorage.sendable =
+									JSON.stringify(sendable)
+								socket.send(
+									'["EVENT",' +
+										JSON.stringify(
+											JSON.parse(
+												sessionStorage.sendable
+											)[1]
+										) +
+										']'
+								)
+							}
+						})
+				})
+			}
+			function makePrivateNote(note, recipientpubkey) {
+				console.log("note: '" + note + "'")
+				var now = Math.floor(new Date().getTime() / 1000)
+				console.log(now)
+				var privatenote = encrypt(privKey, recipientpubkey, note)
+				var newevent = [
+					0,
+					pubKeyMinus2,
+					now,
+					4,
+					[['p', recipientpubkey]],
+					privatenote,
+				]
+				var message = JSON.stringify(newevent)
+				console.log("message: '" + message + "'")
+				var msghash = bitcoinjs.crypto.sha256(message).toString('hex')
+				console.log("msghash: '" + msghash + "'")
+				nobleSecp256k1.schnorr.sign(msghash, privKey).then((value) => {
+					sig = value
+					console.log('the sig is:', sig)
+					nobleSecp256k1.schnorr
+						.verify(sig, msghash, pubKeyMinus2)
+						.then((value) => {
+							console.log(
+								'this should say true if the signature is valid for the above pubkey over the message',
+								value
+							)
+							if (value) {
+								var fullevent = {
+									id: msghash,
+									pubkey: pubKeyMinus2,
+									created_at: now,
+									kind: 4,
+									tags: [['p', recipientpubkey]],
+									content: privatenote,
+									sig: sig,
+								}
+								var sendable = ['EVENT', fullevent]
+								sessionStorage.sendable =
+									JSON.stringify(sendable)
+								console.log(
+									'this is what I am sending:',
+									JSON.stringify(sendable)
+								)
+								socket.send(JSON.stringify(sendable))
+								console.log(
+									'ok the private message with this id was sent',
+									msghash
+								)
+							}
+						})
+				})
+			}
+			function encrypt(privkey, pubkey, text) {
+				console.log(
+					'recipient pubkey (because I keep getting an error that it is not real):',
+					pubkey
+				)
+				var key = nobleSecp256k1
+					.getSharedSecret(privkey, '02' + pubkey, true)
+					.substring(2)
+
+				var iv = window.crypto.getRandomValues(new Uint8Array(16))
+				var cipher = browserifyCipher.createCipheriv(
+					'aes-256-cbc',
+					buffer.Buffer.from(key, 'hex'),
+					iv
+				)
+				var encryptedMessage = cipher.update(text, 'utf8', 'base64')
+				emsg = encryptedMessage + cipher.final('base64')
+
+				return (
+					emsg +
+					'?iv=' +
+					buffer.Buffer.from(iv.buffer).toString('base64')
+				)
+			}
+
+			function decrypt(privkey, pubkey, ciphertext) {
+				var [emsg, iv] = ciphertext.split('?iv=')
+				var key = nobleSecp256k1
+					.getSharedSecret(privkey, '02' + pubkey, true)
+					.substring(2)
+
+				var decipher = browserifyCipher.createDecipheriv(
+					'aes-256-cbc',
+					buffer.Buffer.from(key, 'hex'),
+					buffer.Buffer.from(iv, 'base64')
+				)
+				var decryptedMessage = decipher.update(emsg, 'base64')
+				dmsg = decryptedMessage + decipher.final('utf8')
+
+				return dmsg
+			}
+		</script>
+		<script type="text/javascript">
+			var link = document.createElement('link')
+			link.rel = 'stylesheet'
+			link.href = 'https://unpkg.com/leaflet@1.5.1/dist/leaflet.css'
+			link.integrity =
+				'sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=='
+			link.setAttribute('crossorigin', '')
+			document.getElementsByTagName('head')[0].appendChild(link)
+		</script>
+
+		<script type="text/javascript">
+			var style = document.createElement('style')
+			var css = document.createTextNode('#mapid {height: 100%;}')
+			style.appendChild(css)
+			document.getElementsByTagName('head')[0].appendChild(style)
+		</script>
+
+		<script
+			src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"
+			integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og=="
+			crossorigin=""
+		></script>
+
+		<header id="site_header">
+			<div id="site-branding">
+				<h1 class="site-title">Bullrun</h1>
+			</div>
+			<div id="getting-location">
+				<p>Getting your location...</p>
+			</div>
+		</header>
+		<main>
+			<section id="rider_map">
+				<div class="map-wrapper">
+					<div id="mapid"></div>
+				</div>
+			</section>
+			<section id="rider_invoice">
+				<div
+					id="invoice box"
+					style="width: 100%; max-width: 350px; display: none"
+					align="center"
+				>
+					<h2 id="invoice title">Pay this invoice</h2>
+					<div
+						id="invoice qr"
+						style="
+							width: 100%;
+							max-width: 300px;
+							height: 100%;
+							max-height: 300px;
+							border: 1px solid black;
+							border-radius: 10px;
+							padding: 10px;
+						"
+					></div>
+					<div
+						id="invoice text"
+						style="
+							display: inline-block;
+							border: 1px solid black;
+							text-overflow: break;
+							word-break: break-all;
+						"
+					></div>
+				</div>
+			</section>
+			<section id="rider_preimage">
+				<div
+					id="preimage box"
+					style="width: 100%; max-width: 350px; display: none"
+					align="center"
+				>
+					<h2 id="preimage title">Your preimage</h2>
+					<p id="preimage instructions">
+						Only show this to your driver when your ride is done. He
+						needs it to collect his payment. If you get within 100
+						feet of your destination your device will automatically
+						send it to him.
+					</p>
+					<div
+						id="preimage qr"
+						style="
+							width: 100%;
+							max-width: 300px;
+							height: 100%;
+							max-height: 300px;
+							border: 1px solid black;
+							border-radius: 10px;
+							padding: 10px;
+						"
+					></div>
+					<div
+						id="preimage text"
+						style="
+							display: inline-block;
+							border: 1px solid black;
+							text-overflow: break;
+							word-break: break-all;
+						"
+					></div>
+				</div>
+			</section>
+		</main>
+		<footer id="site_footer">
+			<p>
+				<a
+					href="https://github.com/supertestnet/bullrun"
+					target="_blank"
+					rel="noopener noreferrer"
+					>Bullrun on Github</a
+				>
+			</p>
+		</footer>
+		<script>
+			var options
+			options = {
+				enableHighAccuracy: true,
+				timeout: 15000,
+				maximumAge: 5000,
+			}
+			function error(err) {
+				console.warn('ERROR( ' + err.code + ' ): ' + err.message)
+			}
+			function getLocation() {
+				if (navigator.geolocation) {
+					id = navigator.geolocation.watchPosition(
+						watchUsersPosition,
+						error,
+						options
+					)
+				} else {
+					console.error(
+						'Geolocation is not supported by this browser.'
+					)
 				}
 			}
-			document.getElementById( "getting-location" ).style.display = "none";
-			document.getElementById( "mapid" ).style.display = "block";
-			mymap.on( 'click', function( e ) {
-				addMarker( e );
-			});
-                        function addMarkerByDragging( latlng ) {
-                        	if ( finalized == false ) {
-                        		if ( to != {} ) {
-                        			mymap.removeLayer( to );
-                        		}
-                                to = new L.Marker( latlng, { draggable: true, icon: redIcon } );
-                                to.on( 'dragend', function( event ) {
-                                	addMarkerByDragging( event.target._latlng );
-                                });
-                                mymap.addLayer( to );
-                                newdist = getDistance( from.getLatLng(), to.getLatLng() );
-                                if ( newdist != olddist ) {
-                        			console.log( newdist + ' mi' );
-                        			olddist = newdist;
-                        			var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
-                        			if ( dest_is_final ) {
-                        				console.log( "the destination is final" );
-                        				addFinalMarker( to.getLatLng() );
-                        			}
-                        		}
-                        	}
-                        };
-                        function addMarker( e ) {
-                        	if ( finalized == false ) {
-                                	if ( to != {} ) {
-                                		mymap.removeLayer( to );
-                                	}
-                                        to = new L.Marker( e.latlng, { draggable: true, icon: redIcon } );
-                                        to.on( 'dragend', function( event ) {
-                                        	addMarkerByDragging( event.target._latlng );
-                                        });
-                                        mymap.addLayer( to );
-                                        newdist = getDistance( from.getLatLng(), to.getLatLng() );
-                                        if ( newdist != olddist ) {
-                                		console.log( newdist + ' mi' );
-                                		olddist = newdist;
-                                		var dest_is_final = confirm( "Please click ok if you are sure this is where you want to go" );
-                                		if ( dest_is_final ) {
-                                			console.log( "the destination is final" );
-                                			addFinalMarker( to.getLatLng() );
-                                		}
-                                	}
-                                }
-                        }
-                        async function addFinalMarker( latlng ) {
-                            	finalized = true;
-                        		if ( to != {} ) {
-                        			mymap.removeLayer( to );
-                        		}
-                                to = new L.Marker( latlng, { draggable: false, icon: redIcon } );
-                                mymap.addLayer( to );
-                                dist = getDistance( from.getLatLng(), to.getLatLng() );
-                        /*
+			var lat = 38
+			var lng = -95
+			var zm = 4.3
+			var mymap = L.map('mapid').setView([lat, lng], zm)
+			var redIcon = new L.Icon({
+				iconUrl:
+					'https://streetevangelization.com/wp-content/uploads/2019/09/marker-icon-red.png',
+				shadowUrl:
+					'https://streetevangelization.com/wp-content/uploads/2019/09/marker-shadow.png',
+				iconSize: [25, 41],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34],
+				shadowSize: [41, 41],
+			})
+			var carIcon = new L.Icon({
+				iconUrl:
+					'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Blue_old_car.svg/320px-Blue_old_car.svg.png',
+				shadowUrl: '',
+				iconSize: [50, 20],
+				iconAnchor: [6, 20],
+				popupAnchor: [1, -34],
+				shadowSize: [41, 41],
+			})
+			var from = {}
+			var to = {}
+			var driverimg = {}
+			var olddist = ''
+			var finalized = false
+			var offeramt = ''
+			function getDistance(from, to) {
+				return (from.distanceTo(to).toFixed(0) / 1609.344).toFixed(3)
+			}
+			function watchUsersPosition(position) {
+				if (from != {}) {
+					mymap.removeLayer(from)
+				}
+				if (Object.keys(to).length == 0) {
+					L.tileLayer(
+						'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+						{
+							attribution:
+								'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+						}
+					).addTo(mymap)
+				}
+				from = L.marker(
+					[position.coords.latitude, position.coords.longitude],
+					{ icon: redIcon }
+				).addTo(mymap)
+				console.log('to length:', Object.keys(to).length)
+				if (Object.keys(to).length > 0) {
+					newdist = getDistance(from.getLatLng(), to.getLatLng())
+					if (newdist != olddist) {
+						console.log(newdist + ' mi')
+						olddist = newdist
+						if (newdist < 0.021) {
+							navigator.geolocation.clearWatch(id)
+							alert("you made it, you're there!")
+							finalizeAll()
+						}
+					}
+				}
+				document.getElementById('getting-location').style.display =
+					'none'
+				document.getElementById('mapid').style.display = 'block'
+				mymap.on('click', function (e) {
+					addMarker(e)
+				})
+				function addMarkerByDragging(latlng) {
+					if (finalized == false) {
+						if (to != {}) {
+							mymap.removeLayer(to)
+						}
+						to = new L.Marker(latlng, {
+							draggable: true,
+							icon: redIcon,
+						})
+						to.on('dragend', function (event) {
+							addMarkerByDragging(event.target._latlng)
+						})
+						mymap.addLayer(to)
+						newdist = getDistance(from.getLatLng(), to.getLatLng())
+						if (newdist != olddist) {
+							console.log(newdist + ' mi')
+							olddist = newdist
+							var dest_is_final = confirm(
+								'Please click ok if you are sure this is where you want to go'
+							)
+							if (dest_is_final) {
+								console.log('the destination is final')
+								addFinalMarker(to.getLatLng())
+							}
+						}
+					}
+				}
+				function addMarker(e) {
+					if (finalized == false) {
+						if (to != {}) {
+							mymap.removeLayer(to)
+						}
+						to = new L.Marker(e.latlng, {
+							draggable: true,
+							icon: redIcon,
+						})
+						to.on('dragend', function (event) {
+							addMarkerByDragging(event.target._latlng)
+						})
+						mymap.addLayer(to)
+						newdist = getDistance(from.getLatLng(), to.getLatLng())
+						if (newdist != olddist) {
+							console.log(newdist + ' mi')
+							olddist = newdist
+							var dest_is_final = confirm(
+								'Please click ok if you are sure this is where you want to go'
+							)
+							if (dest_is_final) {
+								console.log('the destination is final')
+								addFinalMarker(to.getLatLng())
+							}
+						}
+					}
+				}
+				async function addFinalMarker(latlng) {
+					finalized = true
+					if (to != {}) {
+						mymap.removeLayer(to)
+					}
+					to = new L.Marker(latlng, {
+						draggable: false,
+						icon: redIcon,
+					})
+					mymap.addLayer(to)
+					dist = getDistance(from.getLatLng(), to.getLatLng())
+					/*
                                 newdist = getDistance( from.getLatLng(), to.getLatLng() );
                                 if ( newdist != olddist ) {
                         			console.log( newdist + ' mi' );
@@ -437,203 +619,325 @@
                         			}
                         		}
                         */
-                		offeramt = prompt( "Please enter a number of sats you're willing to pay a driver to take you there (a good estimate is about a dollar a mile and your destination is " + newdist + " miles away)" );
-                		offeramt = Number( offeramt );
-                		if ( !offeramt ) {
-                			window.location.reload();
-                			return;
-                		}
-                		var fakename = prompt( "Please enter a fake name for your driver to identify you (a fake name is preferred because it will go on the public internet for all to see)" );
-                		if ( !fakename ) {
-                			console.log( "there was no fake name" );
-                			window.location.reload();
-                			return;
-                		}
-                		alert( "We are broadcasting your offer to nearby drivers." );
-                		var current_timestamp = Number( Math.floor( Date.now() / 1000 ) );
-                		var seconds_to_wait_for_a_driver_to_accept_your_offer = 300;
-                		var offer = {}
-                		offer[ "type" ] = "offer";
-                		offer[ "from" ] = from.getLatLng();
-                		offer[ "to" ] = to.getLatLng();
-                		offer[ "amount" ] = offeramt;
-                		offer[ "name" ] = fakename;
-                		offer[ "expires" ] = Number( current_timestamp ) + Number( seconds_to_wait_for_a_driver_to_accept_your_offer );
-                		console.log( "offer:", JSON.stringify( offer ) );
-                		//broadcast the user's offer to nostr
-                		putOfferOnNostr( offer );
-                		var offer_was_broadcasted = true;
-                        }
-		}
-		getLocation();
-		function showSubsequentPositions( position ) {
-			mymap.removeLayer( from );
-			from = L.marker( [ position.coords.latitude, position.coords.longitude ], {icon: redIcon} ).addTo( mymap );
-		}
-	</script>
- 	<script>
- 		var escrow = "https://app7.lightningescrow.io";
- 		function createQR( content ) {
- 		        var dataUriPngImage = document.createElement( "img" ),
- 		        s = QRCode.generatePNG( content, {
- 		                ecclevel: "M",
- 		                format: "html",
- 		                fillcolor: "#FFFFFF",
- 		                textcolor: "#373737",
- 		                margin: 4,
- 		                modulesize: 8,
- 		        });
- 		        dataUriPngImage.src = s;
- 		        dataUriPngImage.id = "qr_code";
- 		        dataUriPngImage.style.display = "block";
- 		        dataUriPngImage.style.margin = "auto";
- 		        dataUriPngImage.style.width = "100%";
- 		        dataUriPngImage.style.maxWidth = "300px";
- 		        return dataUriPngImage;
- 		}
- 		function loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage ) {
- 			var url = "https://app6.lightningescrow.io/getinvoicestatusv2/?pmthash=" + pmthash;
- 			var xhttp = new XMLHttpRequest();
- 			xhttp.onreadystatechange = function() {
- 			    if ( this.readyState == 4 && this.status == 200 ) {
- 			        if ( xhttp.responseText == "ACCEPTED" ) {
- 			        	console.log( xhttp.responseText );
- 			        	var voucher = {}
- 			        	voucher[ "preimage" ] = preimage;
- 			        	voucher[ "lockinghash" ] = lockinghash;
- 			        	voucher[ "voucherid" ] = voucherid;
- 			        	voucher[ "querykey" ] = querykey;
- 			        	voucher[ "amount" ] = amount;
- 			        	voucher[ "escrow" ] = escrow;
- 			        	voucher[ "templatehash" ] = templatehash;
- 			        	voucher = JSON.stringify( voucher );
- 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
- 				        console.log( "here is the voucher:", voucher );
- 				        console.log( "here is the voucher in hex:", voucherhex );
- 				        //send the voucherhex to the driver in a nostr dm
- 				        var message = {}
- 				        message[ "type" ] = "agree";
- 				        message[ "voucher" ] = voucherhex;
- 				        message = JSON.stringify( message );
- 				        sessionStorage[ "driver" ] = drivercommskey;
- 						makePrivateNote( message, drivercommskey );
-						document.getElementById( "invoice box" ).style.display = "none";
-						document.getElementById( "preimage box" ).style.display = "block";
-						alert( "Your driver is on the way. You can track them on the map. Please show them the qr code under the map when your ride is over, your driver will use it to collect your money." );
-	 					document.getElementById( "preimage qr" ).append( createQR( second_preimage ) );
-	 					document.getElementById( "preimage text" ).innerText = second_preimage;
-	 					document.getElementById( "preimage box" ).style.display = "block";
-	 					sessionStorage[ "second_preimage" ] = second_preimage;
-						//remember to show the driver's location on the map
-						//let the rider share their live location with a friend. Girl riders feel more comfortable if someone knows they are with a stranger and where they are
- 			        } else if ( xhttp.responseText != "SETTLED" ) {
- 			        	console.log( xhttp.responseText );
- 			        	var voucher = {}
- 			        	voucher[ "preimage" ] = preimage;
- 			        	voucher[ "lockinghash" ] = lockinghash;
- 			        	voucher[ "voucherid" ] = voucherid;
- 			        	voucher[ "querykey" ] = querykey;
- 			        	voucher[ "amount" ] = amount;
- 			        	voucher[ "escrow" ] = escrow;
- 			        	voucher[ "templatehash" ] = templatehash;
- 			        	voucher = JSON.stringify( voucher );
- 			        	voucherhex = buffer.Buffer.from( voucher ).toString( "hex" );
- 			        	console.log( "do not show the voucher yet...but here it is:", voucher );
- 			        	console.log( "and here is the voucher in hex:", voucherhex );
- 			        	setTimeout( function() {loopChecker( pmthash, preimage, amount, voucherid, querykey, templatehash, lockinghash, drivercommskey, second_preimage );}, 5000 );
- 			        } else {
- 			    		console.log( "Well, you don't need me anymore" );
- 			        }
- 			    }
- 			}
- 			xhttp.open( "GET", url, true );
- 			xhttp.send();
- 		}
- 		function makeVoucher( hash, drivercommskey, driverpubkey, second_preimage ) {
- 			var lockinghash = hash;
- 			var challenge = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
- 			var preimage = bitcoinjs.ECPair.makeRandom().__D.toString( "hex" );
- 			var pmthash = bitcoinjs.crypto.sha256( buffer.Buffer.from( preimage, "hex" ) ).toString( "hex" );
- 			var template = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`;
- 			var templatehash = bitcoinjs.crypto.sha256( template ).toString( "hex" );
- 			var script = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == "` + hash + `" ) {return nobleSecp256k1.verify( signature, "` + challenge + `", "` + driverpubkey + `" );}}`;
-                        var scripthash = bitcoinjs.crypto.sha256( script ).toString( "hex" );
-                        console.log( "here is the script:", script );
-                        console.log( "here is the script hash:", scripthash );
- 			var amount = offeramt;
-                        var querykey = bitcoinjs.ECPair.makeRandom();
-                        var queryprivkey = querykey.privateKey.toString( "hex" );
-                        var querypubkey = querykey.publicKey.toString( "hex" );
-                        var url = "https://app9.lightningescrow.io/gethodlinvoice/?pmthash=" + pmthash + "&scripthash=" + scripthash + "&amount=" + amount.toString() +
-                             "&querykey=" + querypubkey;
-                        var xhttp = new XMLHttpRequest();
-                	xhttp.onreadystatechange = function() {
-                	    if ( this.readyState == 4 && this.status == 200 ) {
-                                    var prepjson = xhttp.responseText;
-                                    prepjson = prepjson.substring( 0, prepjson.indexOf( "}" ) + 1 );
-                                    console.log( prepjson );
-                                    var json = JSON.parse( prepjson );
-                                    console.log( [1] );
-                                    var invoice = json[ "invoice" ];
-                                    var voucherid = json[ "voucher_id" ];
-                                    console.log( "invoice:", invoice );
-                                    console.log( "voucherid:", voucherid );
-                                    document.getElementById( "invoice qr" ).append( createQR( invoice ) );
-                                    document.getElementById( "invoice text" ).innerText = invoice;
-                                    document.getElementById( "invoice box" ).style.display = "block";
-                                    console.log( "pay this invoice:", invoice );
-                                    console.log( "voucherid right before it gets passed to loopchecker:", voucherid );
-                                    loopChecker( pmthash, preimage, amount, voucherid, queryprivkey, templatehash, lockinghash, drivercommskey, second_preimage );
- 			    }
- 			}
- 			xhttp.open( "GET", url, true );
- 			xhttp.send();
- 		}
- 	</script>
- 	<script>
- 		function decideMessageTypeAndNextSteps( message, driver ) {
-                        message = JSON.parse( message );
-                        var type = message[ "type" ];
-                        if ( type == "acceptance" ) {
-                                var name = message[ "name" ];
-                                var vehicle = message[ "vehicle" ];
-                                var coordinates = message[ "coordinates" ];
-                                var coordinatesobj = L.marker( coordinates );
-                                var driver_dist = getDistance( from.getLatLng(), coordinatesobj.getLatLng() );
-                        	var driver_was_found = confirm( "Click ok if you want " + name + " to pick you up in their " + vehicle + ", they are currently " + driver_dist + " miles away" );
-                                if ( !driver_was_found ) {
-                                        return;
-                                }
-                                //send a message to nostr marking the offer message fulfilled
-                                var offer_was_marked_fulfilled = true;
-                                var recipient = message[ "pubkey" ];
-                                //create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
-                                var second_preimage = bitcoinjs.ECPair.makeRandom().privateKey.toString( "hex" );
-                                console.log( "here is the preimage the driver will eventually get assuming no dispute:", second_preimage );
-                                var hash = bitcoinjs.crypto.sha256( buffer.Buffer.from( second_preimage, "hex" ) ).toString( "hex" );
-                                makeVoucher( hash, driver, recipient, second_preimage );
-                        }
-                        if ( type == "location" ) {
-                                console.log( driverlocation );
-                                var driverlocation = message[ "location" ];
-                                if ( driverimg != {} ) {
-                                        mymap.removeLayer( driverimg );
-                                }
-                                driverimg = new L.Marker( driverlocation, { icon: carIcon } );
-                                mymap.addLayer( driverimg );
-                        }
- 		}
- 	</script>
- 	<script>
- 		function finalizeAll() {
-			var message = {}
-			message[ "type" ] = "finalize";
-			message[ "preimage" ] = sessionStorage[ "second_preimage" ];
-			message = JSON.stringify( message );
-			var drivercommskey = sessionStorage[ "driver" ];
-			makePrivateNote( message, drivercommskey );
-			console.log( "congratulations, you reached your destination" );
- 		}
- 	</script>
-</body>
+					offeramt = prompt(
+						"Please enter a number of sats you're willing to pay a driver to take you there (a good estimate is about a dollar a mile and your destination is " +
+							newdist +
+							' miles away)'
+					)
+					offeramt = Number(offeramt)
+					if (!offeramt) {
+						window.location.reload()
+						return
+					}
+					var fakename = prompt(
+						'Please enter a fake name for your driver to identify you (a fake name is preferred because it will go on the public internet for all to see)'
+					)
+					if (!fakename) {
+						console.log('there was no fake name')
+						window.location.reload()
+						return
+					}
+					alert('We are broadcasting your offer to nearby drivers.')
+					var current_timestamp = Number(
+						Math.floor(Date.now() / 1000)
+					)
+					var seconds_to_wait_for_a_driver_to_accept_your_offer = 300
+					var offer = {}
+					offer['type'] = 'offer'
+					offer['from'] = from.getLatLng()
+					offer['to'] = to.getLatLng()
+					offer['amount'] = offeramt
+					offer['name'] = fakename
+					offer['expires'] =
+						Number(current_timestamp) +
+						Number(
+							seconds_to_wait_for_a_driver_to_accept_your_offer
+						)
+					console.log('offer:', JSON.stringify(offer))
+					//broadcast the user's offer to nostr
+					putOfferOnNostr(offer)
+					var offer_was_broadcasted = true
+				}
+			}
+			getLocation()
+			function showSubsequentPositions(position) {
+				mymap.removeLayer(from)
+				from = L.marker(
+					[position.coords.latitude, position.coords.longitude],
+					{ icon: redIcon }
+				).addTo(mymap)
+			}
+		</script>
+		<script>
+			var escrow = 'https://app7.lightningescrow.io'
+			function createQR(content) {
+				var dataUriPngImage = document.createElement('img'),
+					s = QRCode.generatePNG(content, {
+						ecclevel: 'M',
+						format: 'html',
+						fillcolor: '#FFFFFF',
+						textcolor: '#373737',
+						margin: 4,
+						modulesize: 8,
+					})
+				dataUriPngImage.src = s
+				dataUriPngImage.id = 'qr_code'
+				dataUriPngImage.style.display = 'block'
+				dataUriPngImage.style.margin = 'auto'
+				dataUriPngImage.style.width = '100%'
+				dataUriPngImage.style.maxWidth = '300px'
+				return dataUriPngImage
+			}
+			function loopChecker(
+				pmthash,
+				preimage,
+				amount,
+				voucherid,
+				querykey,
+				templatehash,
+				lockinghash,
+				drivercommskey,
+				second_preimage
+			) {
+				var url =
+					'https://app6.lightningescrow.io/getinvoicestatusv2/?pmthash=' +
+					pmthash
+				var xhttp = new XMLHttpRequest()
+				xhttp.onreadystatechange = function () {
+					if (this.readyState == 4 && this.status == 200) {
+						if (xhttp.responseText == 'ACCEPTED') {
+							console.log(xhttp.responseText)
+							var voucher = {}
+							voucher['preimage'] = preimage
+							voucher['lockinghash'] = lockinghash
+							voucher['voucherid'] = voucherid
+							voucher['querykey'] = querykey
+							voucher['amount'] = amount
+							voucher['escrow'] = escrow
+							voucher['templatehash'] = templatehash
+							voucher = JSON.stringify(voucher)
+							voucherhex =
+								buffer.Buffer.from(voucher).toString('hex')
+							console.log('here is the voucher:', voucher)
+							console.log(
+								'here is the voucher in hex:',
+								voucherhex
+							)
+							//send the voucherhex to the driver in a nostr dm
+							var message = {}
+							message['type'] = 'agree'
+							message['voucher'] = voucherhex
+							message = JSON.stringify(message)
+							sessionStorage['driver'] = drivercommskey
+							makePrivateNote(message, drivercommskey)
+							document.getElementById(
+								'invoice box'
+							).style.display = 'none'
+							document.getElementById(
+								'preimage box'
+							).style.display = 'block'
+							alert(
+								'Your driver is on the way. You can track them on the map. Please show them the qr code under the map when your ride is over, your driver will use it to collect your money.'
+							)
+							document
+								.getElementById('preimage qr')
+								.append(createQR(second_preimage))
+							document.getElementById('preimage text').innerText =
+								second_preimage
+							document.getElementById(
+								'preimage box'
+							).style.display = 'block'
+							sessionStorage['second_preimage'] = second_preimage
+							//remember to show the driver's location on the map
+							//let the rider share their live location with a friend. Girl riders feel more comfortable if someone knows they are with a stranger and where they are
+						} else if (xhttp.responseText != 'SETTLED') {
+							console.log(xhttp.responseText)
+							var voucher = {}
+							voucher['preimage'] = preimage
+							voucher['lockinghash'] = lockinghash
+							voucher['voucherid'] = voucherid
+							voucher['querykey'] = querykey
+							voucher['amount'] = amount
+							voucher['escrow'] = escrow
+							voucher['templatehash'] = templatehash
+							voucher = JSON.stringify(voucher)
+							voucherhex =
+								buffer.Buffer.from(voucher).toString('hex')
+							console.log(
+								'do not show the voucher yet...but here it is:',
+								voucher
+							)
+							console.log(
+								'and here is the voucher in hex:',
+								voucherhex
+							)
+							setTimeout(function () {
+								loopChecker(
+									pmthash,
+									preimage,
+									amount,
+									voucherid,
+									querykey,
+									templatehash,
+									lockinghash,
+									drivercommskey,
+									second_preimage
+								)
+							}, 5000)
+						} else {
+							console.log("Well, you don't need me anymore")
+						}
+					}
+				}
+				xhttp.open('GET', url, true)
+				xhttp.send()
+			}
+			function makeVoucher(
+				hash,
+				drivercommskey,
+				driverpubkey,
+				second_preimage
+			) {
+				var lockinghash = hash
+				var challenge =
+					'9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
+				var preimage = bitcoinjs.ECPair.makeRandom().__D.toString('hex')
+				var pmthash = bitcoinjs.crypto
+					.sha256(buffer.Buffer.from(preimage, 'hex'))
+					.toString('hex')
+				var template = `function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == @hash@ ) {return nobleSecp256k1.verify( signature, @challenge@, @recipient@ );}}`
+				var templatehash = bitcoinjs.crypto
+					.sha256(template)
+					.toString('hex')
+				var script =
+					`function script( params ) {var signature = params[ 0 ];var preimage = params[ 1 ];if ( bitcoinjs.crypto.sha256( Buffer.from( preimage, "hex" ) ).toString( "hex" ) == "` +
+					hash +
+					`" ) {return nobleSecp256k1.verify( signature, "` +
+					challenge +
+					`", "` +
+					driverpubkey +
+					`" );}}`
+				var scripthash = bitcoinjs.crypto.sha256(script).toString('hex')
+				console.log('here is the script:', script)
+				console.log('here is the script hash:', scripthash)
+				var amount = offeramt
+				var querykey = bitcoinjs.ECPair.makeRandom()
+				var queryprivkey = querykey.privateKey.toString('hex')
+				var querypubkey = querykey.publicKey.toString('hex')
+				var url =
+					'https://app9.lightningescrow.io/gethodlinvoice/?pmthash=' +
+					pmthash +
+					'&scripthash=' +
+					scripthash +
+					'&amount=' +
+					amount.toString() +
+					'&querykey=' +
+					querypubkey
+				var xhttp = new XMLHttpRequest()
+				xhttp.onreadystatechange = function () {
+					if (this.readyState == 4 && this.status == 200) {
+						var prepjson = xhttp.responseText
+						prepjson = prepjson.substring(
+							0,
+							prepjson.indexOf('}') + 1
+						)
+						console.log(prepjson)
+						var json = JSON.parse(prepjson)
+						console.log([1])
+						var invoice = json['invoice']
+						var voucherid = json['voucher_id']
+						console.log('invoice:', invoice)
+						console.log('voucherid:', voucherid)
+						document
+							.getElementById('invoice qr')
+							.append(createQR(invoice))
+						document.getElementById('invoice text').innerText =
+							invoice
+						document.getElementById('invoice box').style.display =
+							'block'
+						console.log('pay this invoice:', invoice)
+						console.log(
+							'voucherid right before it gets passed to loopchecker:',
+							voucherid
+						)
+						loopChecker(
+							pmthash,
+							preimage,
+							amount,
+							voucherid,
+							queryprivkey,
+							templatehash,
+							lockinghash,
+							drivercommskey,
+							second_preimage
+						)
+					}
+				}
+				xhttp.open('GET', url, true)
+				xhttp.send()
+			}
+		</script>
+		<script>
+			function decideMessageTypeAndNextSteps(message, driver) {
+				message = JSON.parse(message)
+				var type = message['type']
+				if (type == 'acceptance') {
+					var name = message['name']
+					var vehicle = message['vehicle']
+					var coordinates = message['coordinates']
+					var coordinatesobj = L.marker(coordinates)
+					var driver_dist = getDistance(
+						from.getLatLng(),
+						coordinatesobj.getLatLng()
+					)
+					var driver_was_found = confirm(
+						'Click ok if you want ' +
+							name +
+							' to pick you up in their ' +
+							vehicle +
+							', they are currently ' +
+							driver_dist +
+							' miles away'
+					)
+					if (!driver_was_found) {
+						return
+					}
+					//send a message to nostr marking the offer message fulfilled
+					var offer_was_marked_fulfilled = true
+					var recipient = message['pubkey']
+					//create a random preimage and hash it, then create a lightning voucher locked by that hash -- and prepare to show the second preimage to the driver in the form of a qr code
+					var second_preimage =
+						bitcoinjs.ECPair.makeRandom().privateKey.toString('hex')
+					console.log(
+						'here is the preimage the driver will eventually get assuming no dispute:',
+						second_preimage
+					)
+					var hash = bitcoinjs.crypto
+						.sha256(buffer.Buffer.from(second_preimage, 'hex'))
+						.toString('hex')
+					makeVoucher(hash, driver, recipient, second_preimage)
+				}
+				if (type == 'location') {
+					console.log(driverlocation)
+					var driverlocation = message['location']
+					if (driverimg != {}) {
+						mymap.removeLayer(driverimg)
+					}
+					driverimg = new L.Marker(driverlocation, { icon: carIcon })
+					mymap.addLayer(driverimg)
+				}
+			}
+		</script>
+		<script>
+			function finalizeAll() {
+				var message = {}
+				message['type'] = 'finalize'
+				message['preimage'] = sessionStorage['second_preimage']
+				message = JSON.stringify(message)
+				var drivercommskey = sessionStorage['driver']
+				makePrivateNote(message, drivercommskey)
+				console.log('congratulations, you reached your destination')
+			}
+		</script>
+	</body>
 </html>
