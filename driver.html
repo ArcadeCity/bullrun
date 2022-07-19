@@ -3,8 +3,8 @@
 	<head>
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
-		<title>Request a Ride | Bullrun</title>
-		<link rel="icon" href="/icons/favicon.png" />
+		<title>Offer a Ride | Bullrun</title>
+		<link rel="icon" href="images/icons/favicon.svg" type="image/svg+xml" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link rel="stylesheet" href="css/styles.css" />
@@ -112,17 +112,10 @@
 					sessionStorage['i-picked-up-my-rider'] = true
 				}
 			}
-			var fakename = prompt(
-				'Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)'
-			)
-			var vehicle = prompt(
-				'Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle'
-			)
+
 			sessionStorage['privkey'] = buffer.Buffer.from(
 				nobleSecp256k1.utils.randomPrivateKey()
 			).toString('hex')
-			sessionStorage['driver-name'] = fakename
-			sessionStorage['vehicle-description'] = vehicle
 			var riderlocation = { lat: 0, lng: 0 }
 			riderlocation = JSON.stringify(riderlocation)
 			sessionStorage['rider-location'] = riderlocation
@@ -178,6 +171,38 @@
 			// Listen for messages
 			socket.addEventListener('message', function (event) {
 				var event = JSON.parse(event.data)
+				var eventContent = event[2]
+					? JSON.parse(event[2].content)
+					: null
+				var recentRequests = []
+				if (eventContent) {
+					console.log('expires:', eventContent.expires)
+					console.log('now:', Date.now() / 1000)
+				}
+				if (eventContent) {
+					recentRequests.push(eventContent)
+					document.getElementById('request_listings').innerHTML +=
+						recentRequests
+							.map(
+								(request, index) =>
+									`<div id="request_${index}">
+										<div class="request-amount">${request.amount.toLocaleString(undefined, {
+											maximumFractionDigits: 0,
+										})} <br /><span class="sats">sats</span></div>
+										<div class="request-name">${request.name}</div>
+										<div class="request-distance">${request.from} miles</div>
+										<div class="request-expiry">${new Date(
+											request.expires
+										).getMinutes()} m ${new Date(
+										request.expires
+									).getSeconds()} s</div>
+										<div class="request-button"><button id="${request.id}">Accept</button></div>
+									</div>`
+							)
+							.join('')
+				}
+				recentRequests.sort((a, b) => b.expires > a.expires)
+				console.log('event:', event)
 				if (event[2] && event[2].kind == 4) {
 					var i
 					for (i = 0; i < event[2].tags.length; i++) {
@@ -429,13 +454,13 @@
 		</script>
 		<header id="site_header">
 			<div id="site-branding">
-				<h1 class="site-title">Bullrun</h1>
+				<h1 class="site-title"><a href="driver.html">Bullrun</a></h1>
 			</div>
 			<div id="getting-location">
 				<p>Getting your location...</p>
 			</div>
 		</header>
-		<main>
+		<main id="site_content">
 			<div id="content" style="display: none">
 				<div
 					id="error banner"
@@ -448,28 +473,54 @@
 						display: none;
 					"
 				></div>
-				<div
-					id="endpoint-and-macaroon-box"
-					style="
-						border: 1px solid black;
-						border-radius: 10px;
-						padding: 10px;
-						max-width: 350px;
-					"
-				>
-					<h2>
-						Get your rest api endpoint and your invoice macaroon
-						from your umbrel, mynode, voltage, or other node.
-					</h2>
-					<p>Rest api endpoint</p>
-					<p><input type="text" id="endpoint" /></p>
-					<p>Invoice macaroon</p>
-					<p><input type="text" id="macaroon" /></p>
+				<div id="driver_info">
 					<p>
-						<button id="set-endpoint-and-macaroon">Submit</button>
+						Name: <span id="driver_name"></span><br />
+						Vehicle: <span id="driver_vehicle"></span>
+					</p>
+					<p>
+						Not you?
+						<a
+							onclick="sessionStorage.clear();window.location.reload()"
+							>Change Driver</a
+						>
 					</p>
 				</div>
-				<div id="instructions" style="width: 100%; display: none"></div>
+
+				<div id="endpoint-and-macaroon-box">
+					<h2>Node Connection</h2>
+					<p>
+						Get your rest api endpoint and your invoice macaroon
+						from your Umbrel, MyNode, Voltage, or other node.
+					</p>
+					<form id="node_connection_form">
+						<div class="form-field-wrapper">
+							<label for="endpoint">Rest API Endpoint</label>
+							<input
+								type="text"
+								id="endpoint"
+								name="endpoint"
+								placeholder="https://tor.onion:8080"
+							/>
+						</div>
+						<div class="form-field-wrapper">
+							<label for="macaroon">Invoice Macaroon</label>
+							<input type="text" id="macaroon" name="macaroon" />
+						</div>
+						<button type="button" id="set-endpoint-and-macaroon">
+							Submit
+						</button>
+					</form>
+				</div>
+				<div
+					id="instructions"
+					class="highlight-box success"
+					style="display: none"
+				></div>
+				<div id="ride_requests">
+					<h2>Recent Requests</h2>
+					<div id="request_listings"></div>
+				</div>
 			</div>
 		</main>
 		<footer id="site_footer">
@@ -973,7 +1024,8 @@
 			}
 			document
 				.getElementById('set-endpoint-and-macaroon')
-				.addEventListener('click', function () {
+				.addEventListener('click', function (e) {
+					e.preventDefault()
 					document.getElementById(
 						'endpoint-and-macaroon-box'
 					).style.display = 'none'
@@ -1144,6 +1196,33 @@
 					}
 				}
 			}
+		</script>
+		<script>
+			if (
+				!sessionStorage.getItem('driver-name') ||
+				sessionStorage.getItem('driver-name') == '' ||
+				sessionStorage.getItem('driver-name') == 'null'
+			) {
+				var fakename = prompt(
+					'Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)'
+				)
+				sessionStorage['driver-name'] = fakename
+			}
+			document.getElementById('driver_name').innerHTML =
+				sessionStorage.getItem('driver-name')
+
+			if (
+				!sessionStorage.getItem('vehicle-description') ||
+				sessionStorage.getItem('vehicle-description') == '' ||
+				sessionStorage.getItem('vehicle-description') == 'null'
+			) {
+				var vehicle = prompt(
+					'Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle'
+				)
+				sessionStorage['vehicle-description'] = vehicle
+			}
+			document.getElementById('driver_vehicle').innerHTML =
+				sessionStorage.getItem('vehicle-description')
 		</script>
 		<script>
 			function getRandomSmallNumber() {
