@@ -1,6 +1,10 @@
 # Bullrun
 Ridesharing software powered by bitcoin payments and the lightning network
 
+# Video demo
+
+[![](https://i.ibb.co/dtH3sV5/bullrun2.png)](https://www.youtube.com/watch?v=tPTghCxsUS0)
+
 # How to try it
 
 Open these two pages in two different browser tabs:
