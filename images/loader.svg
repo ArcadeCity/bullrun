@@ -1,0 +1,40 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 38 38">
+    <style>
+    .circle { 
+        fill: none;
+        stroke: #ddd;
+        stroke-width: 2;
+        stroke-opacity: 0.35;
+    }
+    .notch { 
+        fill: none;
+        stroke: #ff7f00;
+        stroke-width: 2;
+    }
+    @media (prefers-color-scheme: dark) {
+        .notch {
+            stroke: #ff7f00;
+        }
+    }
+    </style>
+    <g>
+        <g transform="translate(1 1)">
+            <circle class="circle" cx="18" cy="18" r="18" />
+            <path class="notch" d="M36,18c0-9.9-8.1-18-18-18		">
+            <animateTransform
+                accumulate="none"
+                additive="replace"
+                attributeName="transform"
+                calcMode="linear"
+                dur="0.5"
+                fill="remove"
+                from="0 18 18"
+                repeatCount="indefinite"
+                restart="always"
+                to="360 18 18"
+                type="rotate"
+            ></animateTransform>
+            </path>
+        </g>
+    </g>
+</svg>

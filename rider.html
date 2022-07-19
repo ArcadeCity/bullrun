@@ -363,7 +363,7 @@
 
 		<header id="site_header">
 			<div id="site-branding">
-				<h1 class="site-title">Bullrun</h1>
+				<h1 class="site-title"><a href="rider.html">Bullrun</a></h1>
 			</div>
 			<div id="getting-location">
 				<p>Getting your location...</p>
@@ -376,35 +376,28 @@
 				</div>
 			</section>
 			<section id="rider_payment">
+				<div id="data_loader">
+					<img src="images/loader.svg" alt="" />
+				</div>
 				<div id="ride_instructions">
 					<h1>Request a Ride</h1>
 					<h2>Get started</h2>
 					<p>Click anywhere on the map to select your destination.</p>
 				</div>
-				<div id="invoice box" style="display: none">
+				<div id="invoice box" style="display: none" data-lnbc="">
 					<h2 class="invoice-title">Pay this invoice</h2>
-					<div
-						id="invoice qr"
-						style="
-							width: 100%;
-							max-width: 300px;
-							height: 100%;
-							max-height: 300px;
-							border: 1px solid black;
-							border-radius: 10px;
-							padding: 10px;
-						"
-					></div>
-					<div
-						id="invoice text"
-						class="copy-to-clipboard"
-						style="
-							display: inline-block;
-							border: 1px solid black;
-							text-overflow: break;
-							word-break: break-all;
-						"
-					></div>
+					<div class="payment-wrapper">
+						<div id="invoice qr" class="qr-code"></div>
+						<div
+							id="invoice text"
+							class="invoice-text copy-to-clipboard"
+							data-lnbc=""
+							onClick="copyToClipboard(this.innerText)"
+						></div>
+						<button id="open_wallet">
+							<a href=""> Open Wallet</a>
+						</button>
+					</div>
 				</div>
 				<div id="preimage" style="display: none">
 					<h2 class="preimage-title">Your Preimage</h2>
@@ -439,6 +432,7 @@
 			</section>
 		</main>
 		<footer id="site_footer">
+			<div id="snackbar"></div>
 			<p>
 				<a
 					href="https://github.com/supertestnet/bullrun"
@@ -688,10 +682,6 @@
 					})
 				dataUriPngImage.src = s
 				dataUriPngImage.id = 'qr_code'
-				dataUriPngImage.style.display = 'block'
-				dataUriPngImage.style.margin = 'auto'
-				dataUriPngImage.style.width = '100%'
-				dataUriPngImage.style.maxWidth = '300px'
 				return dataUriPngImage
 			}
 			function loopChecker(
@@ -736,12 +726,6 @@
 							message = JSON.stringify(message)
 							sessionStorage['driver'] = drivercommskey
 							makePrivateNote(message, drivercommskey)
-							document.getElementById(
-								'invoice box'
-							).style.display = 'none'
-							document.getElementById(
-								'preimage box'
-							).style.display = 'block'
 							alert(
 								'Your driver is on the way. You can track them on the map. Please show them the qr code under the map when your ride is over, your driver will use it to collect your money.'
 							)
@@ -750,9 +734,8 @@
 								.append(createQR(second_preimage))
 							document.getElementById('preimage text').innerText =
 								second_preimage
-							document.getElementById(
-								'preimage box'
-							).style.display = 'block'
+							document.getElementById('preimage').style.display =
+								'block'
 							sessionStorage['second_preimage'] = second_preimage
 							//remember to show the driver's location on the map
 							//let the rider share their live location with a friend. Girl riders feel more comfortable if someone knows they are with a stranger and where they are
@@ -841,6 +824,11 @@
 					querypubkey
 				var xhttp = new XMLHttpRequest()
 				xhttp.onreadystatechange = function () {
+					document.getElementById('ride_instructions').style.display =
+						'none'
+					document.getElementById('data_loader').style.display =
+						'inline-block'
+
 					if (this.readyState == 4 && this.status == 200) {
 						var prepjson = xhttp.responseText
 						prepjson = prepjson.substring(
@@ -854,11 +842,28 @@
 						var voucherid = json['voucher_id']
 						console.log('invoice:', invoice)
 						console.log('voucherid:', voucherid)
+
 						document
 							.getElementById('invoice qr')
 							.append(createQR(invoice))
 						document.getElementById('invoice text').innerText =
 							invoice
+						document
+							.getElementById('invoice box')
+							.setAttribute('data-lnbc', invoice)
+						document
+							.getElementById('invoice text')
+							.setAttribute('data-lnbc', invoice)
+						document
+							.getElementById('open_wallet')
+							.firstElementChild.setAttribute(
+								'href',
+								'lightning:' + invoice
+							)
+
+						document.getElementById('data_loader').style.display =
+							'none'
+
 						document.getElementById('invoice box').style.display =
 							'block'
 						console.log('pay this invoice:', invoice)
@@ -946,8 +951,19 @@
 			}
 		</script>
 		<script>
-			function copyToClipboard() {
+			function showToast(string) {
+				var x = document.getElementById('snackbar')
+				x.className = 'show'
+				x.innerText = string
+				setTimeout(function () {
+					x.className = x.className.replace('show', '')
+				}, 3000)
+			}
+		</script>
+		<script>
+			function copyToClipboard(value) {
 				navigator.clipboard.writeText(value)
+				showToast('Copied to clipboard')
 			}
 		</script>
 	</body>

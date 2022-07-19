@@ -112,17 +112,10 @@
 					sessionStorage['i-picked-up-my-rider'] = true
 				}
 			}
-			var fakename = prompt(
-				'Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)'
-			)
-			var vehicle = prompt(
-				'Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle'
-			)
+
 			sessionStorage['privkey'] = buffer.Buffer.from(
 				nobleSecp256k1.utils.randomPrivateKey()
 			).toString('hex')
-			sessionStorage['driver-name'] = fakename
-			sessionStorage['vehicle-description'] = vehicle
 			var riderlocation = { lat: 0, lng: 0 }
 			riderlocation = JSON.stringify(riderlocation)
 			sessionStorage['rider-location'] = riderlocation
@@ -178,6 +171,37 @@
 			// Listen for messages
 			socket.addEventListener('message', function (event) {
 				var event = JSON.parse(event.data)
+				var eventContent = event[2]
+					? JSON.parse(event[2].content)
+					: null
+				var recentRequests = []
+				if (eventContent) {
+					console.log('expires:', eventContent.expires)
+					console.log('now:', Date.now() / 1000)
+				}
+				if (eventContent) {
+					recentRequests.push(eventContent)
+					document.getElementById('request_listings').innerHTML +=
+						recentRequests
+							.map(
+								(request, index) =>
+									`<div id="request_${index}">
+										<div class="request-amount">${request.amount.toLocaleString(undefined, {
+											maximumFractionDigits: 0,
+										})} <br /><span class="sats">sats</span></div>
+										<div class="request-name">${request.name}</div>
+										<div class="request-distance">${request.from} miles</div>
+										<div class="request-expiry">${new Date(
+											request.expires
+										).getMinutes()} m ${new Date(
+										request.expires
+									).getSeconds()} s</div>
+										<div class="request-button"><button id="${request.id}">Accept</button></div>
+									</div>`
+							)
+							.join('')
+				}
+				recentRequests.sort((a, b) => b.expires > a.expires)
 				console.log('event:', event)
 				if (event[2] && event[2].kind == 4) {
 					var i
@@ -430,7 +454,7 @@
 		</script>
 		<header id="site_header">
 			<div id="site-branding">
-				<h1 class="site-title">Bullrun</h1>
+				<h1 class="site-title"><a href="driver.html">Bullrun</a></h1>
 			</div>
 			<div id="getting-location">
 				<p>Getting your location...</p>
@@ -449,6 +473,20 @@
 						display: none;
 					"
 				></div>
+				<div id="driver_info">
+					<p>
+						Name: <span id="driver_name"></span><br />
+						Vehicle: <span id="driver_vehicle"></span>
+					</p>
+					<p>
+						Not you?
+						<a
+							onclick="sessionStorage.clear();window.location.reload()"
+							>Change Driver</a
+						>
+					</p>
+				</div>
+
 				<div id="endpoint-and-macaroon-box">
 					<h2>Node Connection</h2>
 					<p>
@@ -479,6 +517,10 @@
 					class="highlight-box success"
 					style="display: none"
 				></div>
+				<div id="ride_requests">
+					<h2>Recent Requests</h2>
+					<div id="request_listings"></div>
+				</div>
 			</div>
 		</main>
 		<footer id="site_footer">
@@ -1154,6 +1196,33 @@
 					}
 				}
 			}
+		</script>
+		<script>
+			if (
+				!sessionStorage.getItem('driver-name') ||
+				sessionStorage.getItem('driver-name') == '' ||
+				sessionStorage.getItem('driver-name') == 'null'
+			) {
+				var fakename = prompt(
+					'Please enter a fake name for your riders to identify you (a fake name is preferred because it will go on the public internet for all to see)'
+				)
+				sessionStorage['driver-name'] = fakename
+			}
+			document.getElementById('driver_name').innerHTML =
+				sessionStorage.getItem('driver-name')
+
+			if (
+				!sessionStorage.getItem('vehicle-description') ||
+				sessionStorage.getItem('vehicle-description') == '' ||
+				sessionStorage.getItem('vehicle-description') == 'null'
+			) {
+				var vehicle = prompt(
+					'Please enter a short vehicle description (e.g. white Ford Mustang) for your riders to identify your vehicle'
+				)
+				sessionStorage['vehicle-description'] = vehicle
+			}
+			document.getElementById('driver_vehicle').innerHTML =
+				sessionStorage.getItem('vehicle-description')
 		</script>
 		<script>
 			function getRandomSmallNumber() {
