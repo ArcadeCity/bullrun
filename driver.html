@@ -208,8 +208,8 @@
 											<div class="request-amount">${eventContent.amount} <br /><span class="sats">sats</span></div>
 											<div class="request-name">${eventContent.name}</div>
 											<div class="request-distance">${distance} miles</div>
-											<div class="request-expiry">${expiry}</div>
-											<div class="request-button"><button id="${eventContent.id}">Accept</button></div>
+											<div class="request-expiry" data-expires="${eventContent.expires}">${expiry}</div>
+											<div class="request-button"><button id="${event[2].pubkey}">Accept</button></div>
 										</div>`
 						if ( numsecs > 0 ) {
 							document.getElementById('request_listings').innerHTML += div
