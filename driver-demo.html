@@ -1153,6 +1153,21 @@
 			}
 		</script>
 		<script>
+			function setExpiries() {
+			  var expiryboxes = document.getElementsByClassName( "request-expiry" );
+			  var i; for ( i=0; i<expiryboxes.length; i++ ) {
+			    var prevexpires = expiryboxes[ i ].getAttribute( "data-expires" );
+			    var now = Math.floor( Date.now() / 1000 );
+			    var numsecs = prevexpires - now;
+			    if ( numsecs < 0 ) {numsecs = 0}
+			    var expiry = convertHMS( numsecs )
+			    expiryboxes[ i ].innerHTML = expiry;
+			  }
+			  setTimeout( function() {setExpiries();}, 1000 );
+			}
+			setExpiries();
+		</script>
+		<script>
 			async function decideMessageTypeAndNextSteps(message, rider) {
 				console.log('test to see if this function is running')
 				message = JSON.parse(message)
