@@ -122,6 +122,18 @@
 			getLocation()
 		</script>
 		<script>
+			function convertHMS(value) {
+			    const sec = parseInt(value, 10); // convert value to number if it's string
+			    let hours   = Math.floor(sec / 3600); // get hours
+			    let minutes = Math.floor((sec - (hours * 3600)) / 60); // get minutes
+			    let seconds = sec - (hours * 3600) - (minutes * 60); //  get seconds
+			    // add 0 if value < 10; Example: 2 => 02
+			    if (minutes < 10) {minutes = "0"+minutes;}
+			    if (seconds < 10) {seconds = "0"+seconds;}
+			    return minutes+' m '+seconds+' s'; // Return is MM m SS s
+			}
+		</script>
+		<script>
 			function normalizeRelayURL(e) {
 				let [t, ...r] = e.trim().split('?')
 				return (
@@ -139,9 +151,9 @@
 			}
 			var subscription = ['REQ', 'get-self-references', filter]
 			subscription = JSON.stringify(subscription)
-			sessionStorage['selfsubscription'] = subscription
+			//sessionStorage['selfsubscription'] = subscription
 			setTimeout(function () {
-				socket.send(sessionStorage['selfsubscription'])
+				socket.send(subscription)
 			}, 1000)
 
 			var filter = {
@@ -149,9 +161,9 @@
 			}
 			var subscription2 = ['REQ', 'get-kind-sixty', filter]
 			subscription2 = JSON.stringify(subscription2)
-			sessionStorage['kindsixtysub'] = subscription2
+			//sessionStorage['kindsixtysub'] = subscription2
 			setTimeout(function () {
-				socket.send(sessionStorage['kindsixtysub'])
+				socket.send(subscription2)
 			}, 1000)
 
 			function subscribe(pubkey) {
@@ -160,8 +172,8 @@
 				}
 				var subscription = ['REQ', 'my-sub', filter]
 				subscription = JSON.stringify(subscription)
-				sessionStorage.subscription = subscription
-				socket.send(sessionStorage.subscription)
+				//sessionStorage.subscription = subscription
+				socket.send(subscription)
 			}
 
 			socket.addEventListener('open', function (event) {
@@ -171,38 +183,41 @@
 			// Listen for messages
 			socket.addEventListener('message', function (event) {
 				var event = JSON.parse(event.data)
-				var eventContent = event[2]
-					? JSON.parse(event[2].content)
-					: null
-				var recentRequests = []
-				if (eventContent) {
-					console.log('expires:', eventContent.expires)
-					console.log('now:', Date.now() / 1000)
+				if (event[2] && event[2].kind == 60) {
+					var eventContent = event[2]
+						? JSON.parse(event[2].content)
+						: null
+					var recentRequests = []
+					if (eventContent) {
+						console.log('expires:', eventContent.expires)
+						console.log('now:', Math.floor( Date.now() / 1000 ) )
+					}
+					var i = -1;
+					if (eventContent) {
+						i = i + 1;
+						recentRequests.push(eventContent)
+						var fromobj = L.marker(eventContent.from)
+						var toobj = L.marker(eventContent.to)
+						var distance = Number( getDistance( fromobj.getLatLng(), toobj.getLatLng() ) ).toLocaleString(undefined, {
+											maximumFractionDigits: 1,
+										})
+						var numsecs = eventContent.expires - Math.floor( Date.now() / 1000 )
+						if ( numsecs < 0 ) {numsecs = 0}
+						var expiry = convertHMS( numsecs )
+						var div = `<div id="request_${i}">
+											<div class="request-amount">${eventContent.amount} <br /><span class="sats">sats</span></div>
+											<div class="request-name">${eventContent.name}</div>
+											<div class="request-distance">${distance} miles</div>
+											<div class="request-expiry">${expiry}</div>
+											<div class="request-button"><button id="${eventContent.id}">Accept</button></div>
+										</div>`
+						if ( numsecs > 0 ) {
+							document.getElementById('request_listings').innerHTML += div
+						}
+					}
+					recentRequests.sort((a, b) => b.expires > a.expires)
+					console.log('event:', event)
 				}
-				if (eventContent) {
-					recentRequests.push(eventContent)
-					document.getElementById('request_listings').innerHTML +=
-						recentRequests
-							.map(
-								(request, index) =>
-									`<div id="request_${index}">
-										<div class="request-amount">${request.amount.toLocaleString(undefined, {
-											maximumFractionDigits: 0,
-										})} <br /><span class="sats">sats</span></div>
-										<div class="request-name">${request.name}</div>
-										<div class="request-distance">${request.from} miles</div>
-										<div class="request-expiry">${new Date(
-											request.expires
-										).getMinutes()} m ${new Date(
-										request.expires
-									).getSeconds()} s</div>
-										<div class="request-button"><button id="${request.id}">Accept</button></div>
-									</div>`
-							)
-							.join('')
-				}
-				recentRequests.sort((a, b) => b.expires > a.expires)
-				console.log('event:', event)
 				if (event[2] && event[2].kind == 4) {
 					var i
 					for (i = 0; i < event[2].tags.length; i++) {
@@ -1172,7 +1187,7 @@
 						from['lat'] +
 						',' +
 						from['lng']
-					document.getElementById('instructions').innerText =
+					document.getElementById('instructions').innerHTML =
 						'click here to open google maps and pick up your rider: <a href="' +
 						url +
 						'" target="_blank">' +
@@ -1240,10 +1255,8 @@
 				}
 			}
 			function sendLocation() {
-				if (
-					sessionStorage['i-picked-up-my-rider'] == true ||
-					sessionStorage['i-picked-up-my-rider'] == 'true'
-				) {
+				if (1==2) {
+//				if (sessionStorage['i-picked-up-my-rider'] == true || sessionStorage['i-picked-up-my-rider'] == 'true') {
 					var destination = JSON.parse(
 						sessionStorage['rider-destination']
 					)
@@ -1252,7 +1265,7 @@
 						destination['lat'] +
 						',' +
 						destination['lng']
-					document.getElementById('instructions').innerText =
+					document.getElementById('instructions').innerHTML =
 						'click here to open google maps and take your rider to their destination: <a href="' +
 						url +
 						'" target="_blank">' +
@@ -1266,8 +1279,8 @@
 				var message = {}
 				message['type'] = 'location'
 				var location = JSON.parse(sessionStorage['location'])
-				//location[ "lat" ] = Number( location[ "lat" ] ) + Number( getRandomSmallNumber() );
-				//location[ "lng" ] = Number( location[ "lng" ] ) + Number( getRandomSmallNumber() );;
+				location[ "lat" ] = Number( location[ "lat" ] ) + Number( getRandomSmallNumber() );
+				location[ "lng" ] = Number( location[ "lng" ] ) + Number( getRandomSmallNumber() );;
 				message['location'] = location
 				message = JSON.stringify(message)
 				console.log(message)
