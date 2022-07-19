@@ -204,12 +204,13 @@
 						var numsecs = eventContent.expires - Math.floor( Date.now() / 1000 )
 						if ( numsecs < 0 ) {numsecs = 0}
 						var expiry = convertHMS( numsecs )
+						var contract = JSON.stringify( eventContent );
 						var div = `<div id="request_${i}">
 											<div class="request-amount">${eventContent.amount} <br /><span class="sats">sats</span></div>
 											<div class="request-name">${eventContent.name}</div>
 											<div class="request-distance">${distance} miles</div>
 											<div class="request-expiry" data-expires="${eventContent.expires}">${expiry}</div>
-											<div class="request-button"><button id="${event[2].pubkey}">Accept</button></div>
+											<div class="request-button"><button id="${event[2].pubkey}" data-contract='${contract}' onclick='acceptRider( this.getAttribute( "id" ), this.getAttribute( "data-contract" ) )'>Accept</button></div>
 										</div>`
 						if ( numsecs > 0 ) {
 							document.getElementById('request_listings').innerHTML += div
@@ -284,6 +285,7 @@
 					var amount = json['amount']
 					var name = json['name']
 					console.log(event[2].content, event[2].id, event[2].pubkey)
+/*
 					var i_want_to_pick_up_the_rider = confirm(
 						'Click okay if you want to pick up ' +
 							name +
@@ -300,24 +302,9 @@
 						return
 					}
 					//if the driver says they want to pick up the rider, make them send the rider a dm with a pubkey that the voucher should be locked to, then -- if the rider sends back a voucher and its ownership is confirmed pending a second preimage (and if it's funded) -- give the driver this link so they can go get the rider: var url = "https://maps.google.com/?q=" + from[ "lat" ] + "," + from[ "lng" ]
-					sessionStorage['current-contract'] = JSON.stringify(json)
-					var message = {}
-					message['type'] = 'acceptance'
-					message['name'] = sessionStorage['driver-name']
-					message['vehicle'] = sessionStorage['vehicle-description']
-					message['coordinates'] = JSON.parse(
-						sessionStorage['location']
-					)
-					sessionStorage['rider'] = event[2].pubkey
-					var driver_privkey = sessionStorage['privkey']
-					var pubkey = nobleSecp256k1.getPublicKey(
-						driver_privkey,
-						true
-					)
-					message['pubkey'] = pubkey
-					message = JSON.stringify(message)
-					makePrivateNote(message, event[2].pubkey)
+					acceptRider( event[2].pubkey, JSON.stringify( json ) );
 					//the rider's app should automatically send the second preimage to the driver if their app says they get within 100 feet of their destination, or they can show them the preimage they need manually
+*/
 				}
 			})
 			function makePrivateNote(note, recipientpubkey) {
@@ -415,6 +402,27 @@
 				return dmsg
 			}
 		</script>
+		<script>
+			function acceptRider( rider_pubkey, contract ) {
+				sessionStorage['current-contract'] = contract
+				var message = {}
+				message['type'] = 'acceptance'
+				message['name'] = sessionStorage['driver-name']
+				message['vehicle'] = sessionStorage['vehicle-description']
+				message['coordinates'] = JSON.parse(
+					sessionStorage['location']
+				)
+				sessionStorage['rider'] = rider_pubkey
+				var driver_privkey = sessionStorage['privkey']
+				var pubkey = nobleSecp256k1.getPublicKey(
+					driver_privkey,
+					true
+				)
+				message['pubkey'] = pubkey
+				message = JSON.stringify(message)
+				makePrivateNote(message, rider_pubkey)
+			}
+		</script>
 		<script type="text/javascript">
 			var link = document.createElement('link')
 			link.rel = 'stylesheet'
@@ -423,6 +431,21 @@
 				'sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=='
 			link.setAttribute('crossorigin', '')
 			document.getElementsByTagName('head')[0].appendChild(link)
+		</script>
+		<script>
+			function setExpiries() {
+			  var expiryboxes = document.getElementsByClassName( "request-expiry" );
+			  var i; for ( i=0; i<expiryboxes.length; i++ ) {
+			    var prevexpires = expiryboxes[ i ].getAttribute( "data-expires" );
+			    var now = Math.floor( Date.now() / 1000 );
+			    var numsecs = prevexpires - now;
+			    if ( numsecs < 0 ) {numsecs = 0;expiryboxes[ i ].parentElement.style.display = 'none'}
+			    var expiry = convertHMS( numsecs )
+			    expiryboxes[ i ].innerHTML = expiry;
+			  }
+			  setTimeout( function() {setExpiries();}, 1000 );
+			}
+			setExpiries();
 		</script>
 		<script
 			src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"
@@ -1151,21 +1174,6 @@
 				var returnable = await getTimeoutData()
 				return returnable
 			}
-		</script>
-		<script>
-			function setExpiries() {
-			  var expiryboxes = document.getElementsByClassName( "request-expiry" );
-			  var i; for ( i=0; i<expiryboxes.length; i++ ) {
-			    var prevexpires = expiryboxes[ i ].getAttribute( "data-expires" );
-			    var now = Math.floor( Date.now() / 1000 );
-			    var numsecs = prevexpires - now;
-			    if ( numsecs < 0 ) {numsecs = 0}
-			    var expiry = convertHMS( numsecs )
-			    expiryboxes[ i ].innerHTML = expiry;
-			  }
-			  setTimeout( function() {setExpiries();}, 1000 );
-			}
-			setExpiries();
 		</script>
 		<script>
 			async function decideMessageTypeAndNextSteps(message, rider) {
