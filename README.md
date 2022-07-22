@@ -29,6 +29,10 @@ Expose LND on a port somewhere, create a nodejs directory for bullrun, install t
 
 Oh yeah, disputes don't work yet. I haven't implemented a way to connect payments to ride ids. So if your rider doesn't voluntarily give you your money, I've got no way to know which payment (if any) you're supposed to get, and your rider can just withhold it from you til the lightning invoice expires. So it's very easy for riders to get free rides right now. Payments *are* escrowed by Lightning Escrow (or whoever's running the backend) right now, and due to my neglience in coding, the part where the driver gets their payment technically gives Lightning Escrow custody of your money for a brief period. I'll work on fixing this as well as making a way to provably associate payments with ride ids. If I finish that, then disputes between riders and drivers will have a way to work them out: submit proof to Lightning Escrow (or whoever's running the backend) that you held up your end of the bargain (with e.g. dashcam footage or an audio recording of the ride) and Lightning Escrow can then finalize the payment on the side of whoever they think was the victim. But right now if there's a dispute no one can really do anything about it, so the driver will just never receive the disputed payment. Therefore do not use this with people you don't trust yet!
 
+# Docs
+
+See the [wiki](https://github.com/ArcadeCity/bullrun/wiki) for more details on rider/driver flows and escrow.
+
 # Used by
 
 - [Cross-platform request feed demo](https://bullrun.arcade.city) via React Native [[Code](https://github.com/ArcadeCity/arcade/tree/main/apps/bullrun-demo) | [Tweet](https://twitter.com/ArcadeCityHall/status/1550234544548335619)]
