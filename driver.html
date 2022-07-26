@@ -157,7 +157,7 @@
 			}, 1000)
 
 			var filter = {
-				kinds: [60],
+				kinds: [20060],
 			}
 			var subscription2 = ['REQ', 'get-kind-sixty', filter]
 			subscription2 = JSON.stringify(subscription2)
@@ -183,7 +183,7 @@
 			// Listen for messages
 			socket.addEventListener('message', function (event) {
 				var event = JSON.parse(event.data)
-				if (event[2] && event[2].kind == 60) {
+				if (event[2] && event[2].kind == 20060) {
 					var eventContent = event[2]
 						? JSON.parse(event[2].content)
 						: null
@@ -261,7 +261,7 @@
 							event[2].pubkey +
 							')'
 					)
-				} else if (event[2] && event[2].kind == 60) {
+				} else if (event[2] && event[2].kind == 20060) {
 					var json = JSON.parse(event[2].content)
 					var expires = json['expires']
 					var current_timestamp = Math.floor(
