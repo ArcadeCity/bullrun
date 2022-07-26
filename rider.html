@@ -78,7 +78,7 @@
 			}, 1000)
 
 			var filter = {
-				kinds: [60],
+				kinds: [20060],
 			}
 			var subscription2 = ['REQ', 'get-kind-sixty', filter]
 			subscription2 = JSON.stringify(subscription2)
@@ -146,7 +146,7 @@
 							event[2].pubkey +
 							')'
 					)
-				} else if (event[2] && event[2].kind == 60) {
+				} else if (event[2] && event[2].kind == 20060) {
 					console.log(event[2].content, event[2].id, event[2].pubkey)
 				}
 			})
@@ -157,7 +157,7 @@
 				console.log("note: '" + offer + "'")
 				var now = Math.floor(new Date().getTime() / 1000)
 				console.log(now)
-				var newevent = [0, pubKeyMinus2, now, 60, [], offer]
+				var newevent = [0, pubKeyMinus2, now, 20060, [], offer]
 				var message = JSON.stringify(newevent)
 				console.log("message: '" + message + "'")
 				var msghash = bitcoinjs.crypto.sha256(message).toString('hex')
@@ -181,7 +181,7 @@
 									id: msghash,
 									pubkey: pubKeyMinus2,
 									created_at: now,
-									kind: 60,
+									kind: 20060,
 									tags: [],
 									content: offer,
 									sig: sig,
